@@ -105,19 +105,21 @@ Le greffon n'est pas lui-même un filtre NDE : GIMP 3 réserve ce mécanisme aux
 
 Aucun greffon GIMP 3 trouvé ne réunit déformation par formes, effets et texte ré-éditable. Voici les outils les plus proches :
 
+Légende : <span style="color:#1a7f37">vert = oui</span> · <span style="color:#cf222e">rouge = non</span> · <span style="color:#d97706">orange = ni l'un ni l'autre</span>
+
 | | **Texte Fontwork** (ce greffon) | Texte le long d'un chemin (GIMP) | Filtres de distorsion GEGL (GIMP) | GEGL Effects (LinuxBeaver) | ofn-text-along-path (Ofnuts) | Arclayer (Akkana Peck) | Fontwork (LibreOffice) |
 |---|---|---|---|---|---|---|---|
-| Version de GIMP | 3.0 | 3.0 (intégré) | 3.0 (intégré) | 2.10 et 3.0 | 2.10 (Python 2) | 2.x (Python 2) | hors GIMP |
-| Formes | 16 (arc, cercle, spirale, vague, entonnoir…) | suit un chemin tracé à la main | coordonnées polaires, ondes, etc., filtre par filtre | aucune | suit un chemin tracé à la main | arc uniquement | environ 40 |
-| Méthode | déformation des contours vectoriels | contours vectoriels | déformation des pixels | styles de calque | contours vectoriels | déformation des pixels | vectoriel |
-| Qualité quand la déformation est forte | nette | nette | flou, trous possibles | sans objet | nette | trous possibles | nette |
-| Contour, dégradé, ombre | oui | non (à faire à la main) | non | oui, très complet (biseau, lueur…) | non | non | oui |
-| Relief 3D | oui | non | non | non | non | non | oui |
-| Aperçu en direct | oui (fenêtre et image) | non | oui | oui | non | non | oui |
-| Texte modifiable après validation | oui (relancer le greffon) | non (produit un chemin) | réglages du filtre modifiables | oui | non | non | oui |
-| Versions précédentes | oui (15) | non | non | non | non | non | non |
-| Styles prêts à l'emploi et styles perso | oui | non | non | oui (préréglages) | non | non | galerie |
-| Vrai filtre NDE GIMP | non (voir plus haut) | non | oui | oui | non | non | sans objet |
+| Version de GIMP | <span style="color:#d97706">3.0</span> | <span style="color:#d97706">3.0 (intégré)</span> | <span style="color:#d97706">3.0 (intégré)</span> | <span style="color:#d97706">2.10 et 3.0</span> | <span style="color:#d97706">2.10 (Python 2)</span> | <span style="color:#d97706">2.x (Python 2)</span> | <span style="color:#d97706">hors GIMP</span> |
+| Formes | <span style="color:#d97706">16 (arc, cercle, spirale, vague, entonnoir…)</span> | <span style="color:#d97706">suit un chemin tracé à la main</span> | <span style="color:#d97706">coordonnées polaires, ondes, etc., filtre par filtre</span> | <span style="color:#d97706">aucune</span> | <span style="color:#d97706">suit un chemin tracé à la main</span> | <span style="color:#d97706">arc uniquement</span> | <span style="color:#d97706">environ 40</span> |
+| Méthode | <span style="color:#d97706">déformation des contours vectoriels</span> | <span style="color:#d97706">contours vectoriels</span> | <span style="color:#d97706">déformation des pixels</span> | <span style="color:#d97706">styles de calque</span> | <span style="color:#d97706">contours vectoriels</span> | <span style="color:#d97706">déformation des pixels</span> | <span style="color:#d97706">vectoriel</span> |
+| Qualité quand la déformation est forte | <span style="color:#d97706">nette</span> | <span style="color:#d97706">nette</span> | <span style="color:#d97706">flou, trous possibles</span> | <span style="color:#d97706">sans objet</span> | <span style="color:#d97706">nette</span> | <span style="color:#d97706">trous possibles</span> | <span style="color:#d97706">nette</span> |
+| Contour, dégradé, ombre | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non (à faire à la main)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui, très complet (biseau, lueur…)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
+| Relief 3D | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
+| Aperçu en direct | <span style="color:#1a7f37">oui (fenêtre et image)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
+| Texte modifiable après validation | <span style="color:#1a7f37">oui (relancer le greffon)</span> | <span style="color:#cf222e">non (produit un chemin)</span> | <span style="color:#d97706">réglages du filtre modifiables</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
+| Versions précédentes | <span style="color:#1a7f37">oui (15)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> |
+| Styles prêts à l'emploi et styles perso | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui (préréglages)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">galerie</span> |
+| Vrai filtre NDE GIMP | <span style="color:#cf222e">non (voir plus haut)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">sans objet</span> |
 
 **En résumé :** GEGL Effects est le meilleur complément pour les styles (biseau, lueurs), et peut s'appliquer par-dessus un calque Fontwork. Le texte le long d'un chemin reste utile pour suivre une courbe libre. Texte Fontwork est le seul à proposer des formes toutes faites de qualité vectorielle avec texte modifiable dans GIMP 3.
 
@@ -224,19 +226,21 @@ The plug-in is not itself an NDE filter: GIMP 3 reserves that mechanism for GEGL
 
 No GIMP 3 plug-in found combines shape warping, effects and re-editable text. The closest tools are:
 
+Key: <span style="color:#1a7f37">green = yes</span> · <span style="color:#cf222e">red = no</span> · <span style="color:#d97706">orange = neither</span>
+
 | | **Texte Fontwork** (this plug-in) | Text along Path (GIMP) | GEGL distort filters (GIMP) | GEGL Effects (LinuxBeaver) | ofn-text-along-path (Ofnuts) | Arclayer (Akkana Peck) | Fontwork (LibreOffice) |
 |---|---|---|---|---|---|---|---|
-| GIMP version | 3.0 | 3.0 (built in) | 3.0 (built in) | 2.10 and 3.0 | 2.10 (Python 2) | 2.x (Python 2) | outside GIMP |
-| Shapes | 16 (arc, circle, spiral, wave, funnel…) | follows a hand-drawn path | polar coordinates, waves, etc., one filter at a time | none | follows a hand-drawn path | arc only | about 40 |
-| Method | warps vector outlines | vector outlines | warps pixels | layer styles | vector outlines | warps pixels | vector |
-| Quality under strong warping | sharp | sharp | blurry, possible holes | n/a | sharp | possible holes | sharp |
-| Outline, gradient, shadow | yes | no (manual) | no | yes, very complete (bevel, glow…) | no | no | yes |
-| 3D extrusion | yes | no | no | no | no | no | yes |
-| Live preview | yes (window and image) | no | yes | yes | no | no | yes |
-| Text editable after confirming | yes (run the plug-in again) | no (produces a path) | filter settings editable | yes | no | no | yes |
-| Previous versions | yes (15) | no | no | no | no | no | no |
-| Ready-made and custom styles | yes | no | no | yes (presets) | no | no | gallery |
-| True GIMP NDE filter | no (see above) | no | yes | yes | no | no | n/a |
+| GIMP version | <span style="color:#d97706">3.0</span> | <span style="color:#d97706">3.0 (built in)</span> | <span style="color:#d97706">3.0 (built in)</span> | <span style="color:#d97706">2.10 and 3.0</span> | <span style="color:#d97706">2.10 (Python 2)</span> | <span style="color:#d97706">2.x (Python 2)</span> | <span style="color:#d97706">outside GIMP</span> |
+| Shapes | <span style="color:#d97706">16 (arc, circle, spiral, wave, funnel…)</span> | <span style="color:#d97706">follows a hand-drawn path</span> | <span style="color:#d97706">polar coordinates, waves, etc., one filter at a time</span> | <span style="color:#d97706">none</span> | <span style="color:#d97706">follows a hand-drawn path</span> | <span style="color:#d97706">arc only</span> | <span style="color:#d97706">about 40</span> |
+| Method | <span style="color:#d97706">warps vector outlines</span> | <span style="color:#d97706">vector outlines</span> | <span style="color:#d97706">warps pixels</span> | <span style="color:#d97706">layer styles</span> | <span style="color:#d97706">vector outlines</span> | <span style="color:#d97706">warps pixels</span> | <span style="color:#d97706">vector</span> |
+| Quality under strong warping | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">blurry, possible holes</span> | <span style="color:#d97706">n/a</span> | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">possible holes</span> | <span style="color:#d97706">sharp</span> |
+| Outline, gradient, shadow | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no (manual)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes, very complete (bevel, glow…)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
+| 3D extrusion | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
+| Live preview | <span style="color:#1a7f37">yes (window and image)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
+| Text editable after confirming | <span style="color:#1a7f37">yes (run the plug-in again)</span> | <span style="color:#cf222e">no (produces a path)</span> | <span style="color:#d97706">filter settings editable</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
+| Previous versions | <span style="color:#1a7f37">yes (15)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> |
+| Ready-made and custom styles | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes (presets)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">gallery</span> |
+| True GIMP NDE filter | <span style="color:#cf222e">no (see above)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">n/a</span> |
 
 **In short:** GEGL Effects is the best companion for styling (bevel, glows) and can be applied on top of a Fontwork layer. Text along Path remains useful for following a free-form curve. Texte Fontwork is the only one offering ready-made vector-quality shapes with editable text in GIMP 3.
 
