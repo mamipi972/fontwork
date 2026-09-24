@@ -9,6 +9,8 @@ Licence / License : [GNU GPL v3 ou ultérieure / or later](#licence--license) �
 ## Français
 
 Greffon Python pour GIMP 3 qui déforme du texte (arc, cercle, spirale, vague, entonnoir, etc.) et y ajoute un contour, un dégradé, une ombre portée et un relief 3D. Tout se règle depuis une seule fenêtre, avec un aperçu en direct. Aucun filtre natif de GIMP n'est utilisé.
+<img width="1592" height="702" alt="image" src="https://github.com/user-attachments/assets/d6e891aa-fbdb-49ba-ad25-9edfb90da00c" />
+
 
 ### Installation
 
