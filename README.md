@@ -5,6 +5,8 @@
 Licence / License : [GNU GPL v3 ou ultérieure / or later](#licence--license) — comme GIMP / same as GIMP.
 
 ---
+<img width="1527" height="752" alt="image" src="https://github.com/user-attachments/assets/5597456f-d35f-4c59-9a55-b5c2f4a660f5" />
+
 
 ## Français
 
