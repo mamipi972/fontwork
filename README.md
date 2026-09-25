@@ -9,8 +9,6 @@ Licence / License : [GNU GPL v3 ou ultérieure / or later](#licence--license) �
 ## Français
 
 Greffon Python pour GIMP 3 qui déforme du texte (arc, cercle, spirale, vague, entonnoir, etc.) et y ajoute un contour, un dégradé, une ombre portée et un relief 3D. Tout se règle depuis une seule fenêtre, avec un aperçu en direct. Aucun filtre natif de GIMP n'est utilisé.
-<img width="1592" height="702" alt="image" src="https://github.com/user-attachments/assets/d6e891aa-fbdb-49ba-ad25-9edfb90da00c" />
-
 
 ### Installation
 
@@ -67,17 +65,43 @@ Le greffon se trouve ensuite dans le menu **Calque ▸ Texte Fontwork…**
 
 ### Utilisation
 
-- **Style** : 15 styles prêts à l'emploi. Le bouton *Enregistrer le style…* garde vos propres réglages ; ils apparaissent ensuite dans la liste avec une ★.
-- **Texte** : le texte (sur plusieurs lignes si besoin), la police, la taille en pixels, l'espacement des lettres, l'interligne, l'alignement et la largeur.
-- **Forme** : 16 formes au choix (droit, arc haut, arc bas, cercle, spirale, vague, ondulation, gonflé, pincé, dôme, cuvette, entonnoir, pyramide, perspective, montée, chevron). Selon la forme, on règle l'intensité, le nombre de vagues, l'angle de l'arc et la rotation. Les réglages sans effet sur la forme choisie sont grisés.
-- **Couleurs** : remplissage aucun, uni ou en dégradé (deux couleurs et un angle), épaisseur et couleur du contour.
+Le greffon a deux modes, choisis en haut de la fenêtre : **Texte déformé** et **Badge / sceau**. Chaque mode propose des **modèles** de départ ; tout reste ensuite modifiable (textes, couleurs, tailles, rayons…). Le bouton *Enregistrer…* garde vos propres réglages comme modèle personnel ; ils apparaissent ensuite dans la liste avec une ★.
+
+#### Mode Texte déformé
+
+- **Modèles** : 19 modèles, dont *Cercle orange*, *Bloc 3D*, *Double arche* et *Or estampé*.
+- **Texte** : le texte (sur plusieurs lignes si besoin), la police, la taille en pixels, l'espacement des lettres, l'interligne, l'alignement et la largeur. L'option *Déformer chaque ligne séparément* applique la forme à chaque ligne (par exemple deux arches superposées), avec un écart réglable.
+- **Forme** : 16 formes au choix (droit, arc haut, arc bas, cercle, spirale, vague, ondulation, gonflé, pincé, dôme, cuvette, entonnoir, pyramide, perspective, montée, chevron). Selon la forme, on règle l'intensité, le nombre de vagues, l'angle de l'arc et la rotation. Les réglages sans effet sur la forme choisie sont grisés. *Grossir au centre* et *Grossir vers la droite* font varier la taille des lettres, en plus de la forme.
+- **Couleurs** : remplissage aucun, uni, dégradé à 2 ou 3 couleurs, ou métal (or, argent, bronze), avec l'angle du dégradé ; épaisseur et couleur du contour.
+- **Biseau** : relief bombé ou gravé sur le remplissage, avec profondeur, douceur, direction de la lumière, éclat et ombre.
 - **Ombre** : décalage, flou, couleur et opacité.
-- **Relief 3D** : profondeur, direction et couleur. Le relief est automatiquement assombri vers l'arrière.
+- **3D** : relief (extrusion) avec profondeur, direction et couleur, automatiquement assombri vers l'arrière ; rotation 3D (basculer, pivoter) avec perspective réglable.
+
+#### Mode Badge / sceau
+
+Pour les logos ronds, médailles, tampons et citations en cercle.
+
+- **Modèles** : *Club (deux anneaux)*, *Citation sur photo*, *Médaille d'or*, *Tampon encreur*, *Écusson bleu et or*. La case *Garder mes textes en changeant de modèle* permet d'essayer plusieurs modèles sans retaper ses textes.
+- **Anneaux** : diamètre et rotation du badge ; jusqu'à 4 anneaux, chacun avec rayon, couleur de fond (transparente possible) et trait (épaisseur, couleur).
+- **Textes** : un texte en haut (lettres vers l'extérieur) et un texte en bas (lisible à l'endroit), chacun avec police, taille, couleur, rayon, contour et espacement. *Étaler sur* répartit le texte sur l'angle voulu (par exemple 335° pour un texte qui fait presque tout le tour). Un texte central sur plusieurs lignes, avec décalage vertical.
+- **Décors** : filets en arc qui relient les deux textes ; couronne de motifs répétés (★, •, ✦… nombre, rayon, taille, couleur, angle de départ, orientation) ; sélection circulaire créée à la validation, pour placer une photo ou un logo au centre.
+- **Effets** : finition métal (or, argent, bronze) appliquée à tout le badge, biseau (sur les textes ou sur tout le badge) et ombre portée.
+
+Le badge est centré sur l'image, ou sur la sélection s'il y en a une : faites d'abord une sélection sur votre photo pour y placer le badge.
+
+#### Options communes
+
 - **Aperçu en direct sur l'image** : le calque se met à jour dans le canevas pendant que vous réglez. Ces essais n'entrent pas dans l'historique d'annulation.
 - **Créer aussi un tracé** : crée en plus un chemin vectoriel du texte déformé, utile pour un détourage ou un tracé personnalisé.
 - **Fusionner avec le calque du dessous** : décochée par défaut. Cochée, le texte est fusionné dans le calque inférieur et n'est plus modifiable par le greffon.
 
 Le texte est placé au centre de l'image, ou au centre de la sélection s'il y en a une.
+
+### Réinitialiser (réglages d'origine)
+
+Le bouton **Réinitialiser**, à côté de la liste des modèles, remet tous les réglages du mode en cours à leurs valeurs d'origine. Deux options : *Garder mes textes*, et *Supprimer aussi mes modèles personnels (★)*. Les réglages remis à zéro ne s'appliquent au calque qu'après **Valider**.
+
+Réinitialisation manuelle, GIMP fermé : supprimez `fontwork-last.json` (derniers réglages utilisés) et, si vous le souhaitez, `fontwork-styles.json` (vos modèles ★), dans le dossier de profil GIMP (`%APPDATA%\GIMP\3.0\` sous Windows, `~/.config/GIMP/3.0/` sous Linux).
 
 ### Modifier un texte existant (édition non destructive)
 
@@ -102,6 +126,7 @@ Le greffon n'est pas lui-même un filtre NDE : GIMP 3 réserve ce mécanisme aux
 - Les contours du texte sont produits par le moteur texte de GIMP : toutes les polices connues de GIMP sont disponibles, y compris celles de ses dossiers de polices.
 - Le greffon fonctionne sur les images RVB et en niveaux de gris. Une image indexée doit d'abord être convertie : **Image ▸ Mode ▸ RVB**.
 - L'entonnoir et la pyramide donnent de meilleurs résultats avec un texte sur 2 ou 3 lignes.
+- En cas d'erreur, le détail est écrit dans le fichier `fontwork-erreurs.log` du dossier de profil GIMP (`%APPDATA%\GIMP\3.0\` sous Windows, `~/.config/GIMP/3.0/` sous Linux). Joignez-le si vous signalez un problème.
 
 ### Greffons et outils similaires
 
@@ -112,10 +137,13 @@ Légende : <span style="color:#1a7f37">vert = oui</span> · <span style="color:#
 | | **Texte Fontwork** (ce greffon) | Texte le long d'un chemin (GIMP) | Filtres de distorsion GEGL (GIMP) | GEGL Effects (LinuxBeaver) | ofn-text-along-path (Ofnuts) | Arclayer (Akkana Peck) | Fontwork (LibreOffice) |
 |---|---|---|---|---|---|---|---|
 | Version de GIMP | <span style="color:#d97706">3.0</span> | <span style="color:#d97706">3.0 (intégré)</span> | <span style="color:#d97706">3.0 (intégré)</span> | <span style="color:#d97706">2.10 et 3.0</span> | <span style="color:#d97706">2.10 (Python 2)</span> | <span style="color:#d97706">2.x (Python 2)</span> | <span style="color:#d97706">hors GIMP</span> |
-| Formes | <span style="color:#d97706">16 (arc, cercle, spirale, vague, entonnoir…)</span> | <span style="color:#d97706">suit un chemin tracé à la main</span> | <span style="color:#d97706">coordonnées polaires, ondes, etc., filtre par filtre</span> | <span style="color:#d97706">aucune</span> | <span style="color:#d97706">suit un chemin tracé à la main</span> | <span style="color:#d97706">arc uniquement</span> | <span style="color:#d97706">environ 40</span> |
+| Formes | <span style="color:#d97706">16 (arc, cercle, spirale, vague, entonnoir…) + badges</span> | <span style="color:#d97706">suit un chemin tracé à la main</span> | <span style="color:#d97706">coordonnées polaires, ondes, etc., filtre par filtre</span> | <span style="color:#d97706">aucune</span> | <span style="color:#d97706">suit un chemin tracé à la main</span> | <span style="color:#d97706">arc uniquement</span> | <span style="color:#d97706">environ 40</span> |
 | Méthode | <span style="color:#d97706">déformation des contours vectoriels</span> | <span style="color:#d97706">contours vectoriels</span> | <span style="color:#d97706">déformation des pixels</span> | <span style="color:#d97706">styles de calque</span> | <span style="color:#d97706">contours vectoriels</span> | <span style="color:#d97706">déformation des pixels</span> | <span style="color:#d97706">vectoriel</span> |
 | Qualité quand la déformation est forte | <span style="color:#d97706">nette</span> | <span style="color:#d97706">nette</span> | <span style="color:#d97706">flou, trous possibles</span> | <span style="color:#d97706">sans objet</span> | <span style="color:#d97706">nette</span> | <span style="color:#d97706">trous possibles</span> | <span style="color:#d97706">nette</span> |
 | Contour, dégradé, ombre | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non (à faire à la main)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui, très complet (biseau, lueur…)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
+| Badges (textes haut/bas, anneaux, motifs) | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> |
+| Biseau, finition métal | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> |
+| Rotation 3D en perspective | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">filtre séparé (perspective)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
 | Relief 3D | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
 | Aperçu en direct | <span style="color:#1a7f37">oui (fenêtre et image)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
 | Texte modifiable après validation | <span style="color:#1a7f37">oui (relancer le greffon)</span> | <span style="color:#cf222e">non (produit un chemin)</span> | <span style="color:#d97706">réglages du filtre modifiables</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
@@ -123,7 +151,7 @@ Légende : <span style="color:#1a7f37">vert = oui</span> · <span style="color:#
 | Styles prêts à l'emploi et styles perso | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui (préréglages)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">galerie</span> |
 | Vrai filtre NDE GIMP | <span style="color:#cf222e">non (voir plus haut)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">sans objet</span> |
 
-**En résumé :** GEGL Effects est le meilleur complément pour les styles (biseau, lueurs), et peut s'appliquer par-dessus un calque Fontwork. Le texte le long d'un chemin reste utile pour suivre une courbe libre. Texte Fontwork est le seul à proposer des formes toutes faites de qualité vectorielle avec texte modifiable dans GIMP 3.
+**En résumé :** GEGL Effects est le meilleur complément pour les styles (biseau, lueurs), et peut s'appliquer par-dessus un calque Fontwork. Le texte le long d'un chemin reste utile pour suivre une courbe libre. Texte Fontwork est le seul à proposer des formes toutes faites et des badges de qualité vectorielle avec texte modifiable dans GIMP 3.
 
 ---
 
@@ -186,19 +214,43 @@ The plug-in is then in the **Layer ▸ Texte Fontwork…** menu.
 
 ### Usage
 
-The interface is in French. The main controls are:
+The interface is in French. The plug-in has two modes, chosen at the top of the window: **Texte déformé** (Warped text) and **Badge / sceau** (Badge / seal). Each mode offers starting **templates** (*Modèle*); everything stays editable afterwards (texts, colours, sizes, radii…). The *Enregistrer…* (Save) button keeps your own settings as a personal template; they then appear in the list with a ★.
 
-- **Style**: 15 ready-made styles. The *Enregistrer le style…* (Save style) button keeps your own settings; they then appear in the list with a ★.
-- **Texte** (Text): the text (multi-line if needed), font, size in pixels, letter spacing, line spacing, alignment and width.
-- **Forme** (Shape): 16 shapes (straight, arc up, arc down, circle, spiral, wave, ripple, inflate, pinch, dome, bowl, funnel, pyramid, perspective, slant, chevron). Depending on the shape, you set the intensity, number of waves, arc angle and rotation. Settings that have no effect on the chosen shape are greyed out.
-- **Couleurs** (Colours): no fill, solid or gradient fill (two colours and an angle), outline width and colour.
+#### Warped text mode
+
+- **Templates**: 19 templates, including *Cercle orange* (orange circle), *Bloc 3D* (3D block), *Double arche* (double arch) and *Or estampé* (embossed gold).
+- **Texte** (Text): the text (multi-line if needed), font, size in pixels, letter spacing, line spacing, alignment and width. *Déformer chaque ligne séparément* (Warp each line separately) applies the shape to each line (for example two stacked arches), with an adjustable gap.
+- **Forme** (Shape): 16 shapes (straight, arc up, arc down, circle, spiral, wave, ripple, inflate, pinch, dome, bowl, funnel, pyramid, perspective, slant, chevron). Depending on the shape, you set the intensity, number of waves, arc angle and rotation. Settings that have no effect on the chosen shape are greyed out. *Grossir au centre* (Grow in the centre) and *Grossir vers la droite* (Grow to the right) vary the letter size on top of the shape.
+- **Couleurs** (Colours): no fill, solid, 2- or 3-colour gradient, or metal (gold, silver, bronze), with the gradient angle; outline width and colour.
+- **Biseau** (Bevel): raised or engraved bevel on the fill, with depth, softness, light direction, highlight and shade.
 - **Ombre** (Shadow): offset, blur, colour and opacity.
-- **Relief 3D** (3D extrusion): depth, direction and colour. The extrusion automatically gets darker towards the back.
+- **3D**: extrusion with depth, direction and colour, automatically darker towards the back; 3D rotation (tilt, turn) with adjustable perspective.
+
+#### Badge / seal mode
+
+For round logos, medals, stamps and quotes in a circle.
+
+- **Templates**: *Club (deux anneaux)* (two-ring club), *Citation sur photo* (quote on a photo), *Médaille d'or* (gold medal), *Tampon encreur* (rubber stamp), *Écusson bleu et or* (blue and gold crest). The *Garder mes textes en changeant de modèle* (Keep my texts when changing template) box lets you try several templates without retyping your texts.
+- **Anneaux** (Rings): badge diameter and rotation; up to 4 rings, each with radius, background colour (can be transparent) and stroke (width, colour).
+- **Textes** (Texts): a top text (letters facing outwards) and a bottom text (upright and readable), each with font, size, colour, radius, outline and spacing. *Étaler sur* (Spread over) distributes the text over the chosen angle (for example 335° for text running almost all the way round). A multi-line centre text with vertical offset.
+- **Décors** (Decorations): arc lines joining the two texts; a ring of repeated symbols (★, •, ✦… count, radius, size, colour, start angle, orientation); a circular selection created when you confirm, to place a photo or logo in the centre.
+- **Effets** (Effects): metal finish (gold, silver, bronze) applied to the whole badge, bevel (on the texts or the whole badge) and drop shadow.
+
+The badge is centred on the image, or on the selection if there is one: make a selection on your photo first to place the badge there.
+
+#### Common options
+
 - **Aperçu en direct sur l'image** (Live preview on the image): the layer updates on the canvas while you adjust. These tests do not go into the undo history.
 - **Créer aussi un tracé** (Also create a path): also creates a vector path of the warped text, useful for selections or custom strokes.
 - **Fusionner avec le calque du dessous** (Merge with the layer below): unchecked by default. When checked, the text is merged into the layer below and can no longer be edited by the plug-in.
 
 The text is placed at the centre of the image, or at the centre of the selection if there is one.
+
+### Reset (factory settings)
+
+The **Réinitialiser** (Reset) button, next to the template list, restores every setting of the current mode to its original value. Two options: *Garder mes textes* (Keep my texts) and *Supprimer aussi mes modèles personnels (★)* (Also delete my personal templates). The reset settings only apply to the layer after **Valider** (OK).
+
+Manual reset, with GIMP closed: delete `fontwork-last.json` (last used settings) and, if you wish, `fontwork-styles.json` (your ★ templates) in the GIMP profile folder (`%APPDATA%\GIMP\3.0\` on Windows, `~/.config/GIMP/3.0/` on Linux).
 
 ### Editing existing text (non-destructive editing)
 
@@ -223,6 +275,7 @@ The plug-in is not itself an NDE filter: GIMP 3 reserves that mechanism for GEGL
 - Text outlines are produced by GIMP's own text engine: every font GIMP knows is available, including fonts in GIMP's font folders.
 - The plug-in works on RGB and greyscale images. Convert an indexed image first: **Image ▸ Mode ▸ RGB**.
 - Funnel and pyramid look best with text on 2 or 3 lines.
+- If an error occurs, the details are written to `fontwork-erreurs.log` in the GIMP profile folder (`%APPDATA%\GIMP\3.0\` on Windows, `~/.config/GIMP/3.0/` on Linux). Attach it when reporting a problem.
 
 ### Similar plug-ins and tools
 
@@ -233,10 +286,13 @@ Key: <span style="color:#1a7f37">green = yes</span> · <span style="color:#cf222
 | | **Texte Fontwork** (this plug-in) | Text along Path (GIMP) | GEGL distort filters (GIMP) | GEGL Effects (LinuxBeaver) | ofn-text-along-path (Ofnuts) | Arclayer (Akkana Peck) | Fontwork (LibreOffice) |
 |---|---|---|---|---|---|---|---|
 | GIMP version | <span style="color:#d97706">3.0</span> | <span style="color:#d97706">3.0 (built in)</span> | <span style="color:#d97706">3.0 (built in)</span> | <span style="color:#d97706">2.10 and 3.0</span> | <span style="color:#d97706">2.10 (Python 2)</span> | <span style="color:#d97706">2.x (Python 2)</span> | <span style="color:#d97706">outside GIMP</span> |
-| Shapes | <span style="color:#d97706">16 (arc, circle, spiral, wave, funnel…)</span> | <span style="color:#d97706">follows a hand-drawn path</span> | <span style="color:#d97706">polar coordinates, waves, etc., one filter at a time</span> | <span style="color:#d97706">none</span> | <span style="color:#d97706">follows a hand-drawn path</span> | <span style="color:#d97706">arc only</span> | <span style="color:#d97706">about 40</span> |
+| Shapes | <span style="color:#d97706">16 (arc, circle, spiral, wave, funnel…) + badges</span> | <span style="color:#d97706">follows a hand-drawn path</span> | <span style="color:#d97706">polar coordinates, waves, etc., one filter at a time</span> | <span style="color:#d97706">none</span> | <span style="color:#d97706">follows a hand-drawn path</span> | <span style="color:#d97706">arc only</span> | <span style="color:#d97706">about 40</span> |
 | Method | <span style="color:#d97706">warps vector outlines</span> | <span style="color:#d97706">vector outlines</span> | <span style="color:#d97706">warps pixels</span> | <span style="color:#d97706">layer styles</span> | <span style="color:#d97706">vector outlines</span> | <span style="color:#d97706">warps pixels</span> | <span style="color:#d97706">vector</span> |
 | Quality under strong warping | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">blurry, possible holes</span> | <span style="color:#d97706">n/a</span> | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">possible holes</span> | <span style="color:#d97706">sharp</span> |
 | Outline, gradient, shadow | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no (manual)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes, very complete (bevel, glow…)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
+| Badges (top/bottom texts, rings, symbols) | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> |
+| Bevel, metal finish | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> |
+| 3D rotation with perspective | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">separate filter (perspective)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
 | 3D extrusion | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
 | Live preview | <span style="color:#1a7f37">yes (window and image)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
 | Text editable after confirming | <span style="color:#1a7f37">yes (run the plug-in again)</span> | <span style="color:#cf222e">no (produces a path)</span> | <span style="color:#d97706">filter settings editable</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
@@ -244,7 +300,7 @@ Key: <span style="color:#1a7f37">green = yes</span> · <span style="color:#cf222
 | Ready-made and custom styles | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes (presets)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">gallery</span> |
 | True GIMP NDE filter | <span style="color:#cf222e">no (see above)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">n/a</span> |
 
-**In short:** GEGL Effects is the best companion for styling (bevel, glows) and can be applied on top of a Fontwork layer. Text along Path remains useful for following a free-form curve. Texte Fontwork is the only one offering ready-made vector-quality shapes with editable text in GIMP 3.
+**In short:** GEGL Effects is the best companion for styling (bevel, glows) and can be applied on top of a Fontwork layer. Text along Path remains useful for following a free-form curve. Texte Fontwork is the only one offering ready-made vector-quality shapes and badges with editable text in GIMP 3.
 
 ---
 
