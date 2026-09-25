@@ -237,6 +237,34 @@ def update_layer_in_place(image, layer, surf, x, y):
             image.remove_channel(saved)
 
 
+def remove_channel(image, name):
+    for ch in image.get_channels():
+        if ch.get_name() == name:
+            image.remove_channel(ch)
+
+
+def save_zone_channel(image, circle, name):
+    """
+    Enregistre un cercle comme canal nommé, sans laisser de sélection active :
+    la sélection de l'utilisateur est remise telle qu'elle était.
+    """
+    previous = None
+    if not Gimp.Selection.is_empty(image):
+        previous = Gimp.Selection.save(image)
+    try:
+        image.select_ellipse(Gimp.ChannelOps.REPLACE, *circle)
+        ch = Gimp.Selection.save(image)
+        ch.set_name(name)
+        ch.set_visible(False)
+    finally:
+        if previous is not None:
+            image.select_item(Gimp.ChannelOps.REPLACE, previous)
+            image.remove_channel(previous)
+        else:
+            Gimp.Selection.none(image)
+    return ch
+
+
 def add_path(image, polys, dx, dy, name):
     path = Gimp.Path.new(image, name)
     image.insert_path(path, None, 0)
@@ -647,9 +675,19 @@ class FontworkDialog:
         self._color(g, "Couleur", "b_mot_col")
         self._slider(g, "Angle de départ (°)", "b_mot_start", -180, 180, 1)
         self._check(g, "Orienter les motifs selon le cercle", "b_mot_follow")
-        self._section(g, "Sélection pour une photo ou un logo")
-        self._check(g, "Créer une sélection circulaire en validant", "b_sel_on")
-        self._slider(g, "Rayon de la sélection (%)", "b_sel_r", 5, 120, 0.5, 1)
+        self._section(g, "Zone centrale pour une photo ou un logo")
+        self._check(g, "Créer une zone circulaire en validant", "b_sel_on")
+        self._combo(g, "Sous forme de", "b_sel_mode",
+                    [("canal", "Canal enregistré (recommandé)"),
+                     ("selection", "Sélection active")])
+        self._slider(g, "Rayon de la zone (%)", "b_sel_r", 5, 120, 0.5, 1)
+        hint = Gtk.Label(xalign=0, wrap=True, max_width_chars=48)
+        hint.set_markup("<small>Canal : la zone est rangée dans l'onglet <b>Canaux</b>, "
+                        "sans sélection active. Pour l'utiliser : clic droit sur le canal "
+                        "▸ <b>Canal vers sélection</b>.</small>")
+        g.attach(hint, 0, g.row, 2, 1)
+        self.rows["b_sel_hint"] = (hint,)
+        g.row += 1
         return g
 
     def _page_b_effects(self):
@@ -858,7 +896,8 @@ class FontworkDialog:
         for k in ("b_mot_char", "b_mot_font", "b_mot_n", "b_mot_r", "b_mot_size",
                   "b_mot_col", "b_mot_start", "b_mot_follow"):
             self._sens(k, bool(p["b_mot_on"]))
-        self._sens("b_sel_r", bool(p["b_sel_on"]))
+        for k in ("b_sel_r", "b_sel_mode", "b_sel_hint"):
+            self._sens(k, bool(p["b_sel_on"]))
         for k in ("b_bev_style", "b_bev_depth", "b_bev_soft", "b_bev_angle", "b_bev_hi", "b_bev_sh"):
             self._sens(k, p["b_bev_scope"] != "rien")
         for k in ("b_sh_dx", "b_sh_dy", "b_sh_blur", "b_sh_col"):
@@ -1122,10 +1161,26 @@ class FontworkPlugin(Gimp.PlugIn):
         step("enregistrement des réglages (texte modifiable)",
              lambda: write_parasite(layer, stored))
 
+        # Zone centrale : l'ancien canal de ce badge est remplacé ou retiré
+        old_zone = params.get("_zone") if edit_layer is not None else None
+        if old_zone and not (p["mode"] == "badge" and p["b_sel_on"] and p["b_sel_mode"] == "canal"):
+            step("suppression de l'ancienne zone", lambda: remove_channel(image, old_zone))
         if p["mode"] == "badge" and p["b_sel_on"]:
             rs = prep["R"] * p["b_sel_r"] / 100.0
-            step("sélection circulaire", lambda: image.select_ellipse(
-                Gimp.ChannelOps.REPLACE, anchor[0] - rs, anchor[1] - rs, 2 * rs, 2 * rs))
+            circle = (anchor[0] - rs, anchor[1] - rs, 2 * rs, 2 * rs)
+            if p["b_sel_mode"] == "selection":
+                step("sélection circulaire", lambda: image.select_ellipse(
+                    Gimp.ChannelOps.REPLACE, *circle))
+            else:
+                zone = "Fontwork : zone centrale – " + first
+                def make_zone():
+                    if old_zone:
+                        remove_channel(image, old_zone)
+                    remove_channel(image, zone)
+                    save_zone_channel(image, circle, zone)
+                    stored["_zone"] = zone
+                    write_parasite(layer, stored)
+                step("zone centrale (canal)", make_zone)
 
         if make_path and polys:
             step("création du tracé", lambda: add_path(

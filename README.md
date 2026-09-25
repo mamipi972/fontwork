@@ -5,8 +5,6 @@
 Licence / License : [GNU GPL v3 ou ultérieure / or later](#licence--license) — comme GIMP / same as GIMP.
 
 ---
-<img width="1527" height="752" alt="image" src="https://github.com/user-attachments/assets/5597456f-d35f-4c59-9a55-b5c2f4a660f5" />
-
 
 ## Français
 
@@ -86,10 +84,12 @@ Pour les logos ronds, médailles, tampons et citations en cercle.
 - **Modèles** : *Club (deux anneaux)*, *Citation sur photo*, *Médaille d'or*, *Tampon encreur*, *Écusson bleu et or*. La case *Garder mes textes en changeant de modèle* permet d'essayer plusieurs modèles sans retaper ses textes.
 - **Anneaux** : diamètre et rotation du badge ; jusqu'à 4 anneaux, chacun avec rayon, couleur de fond (transparente possible) et trait (épaisseur, couleur).
 - **Textes** : un texte en haut (lettres vers l'extérieur) et un texte en bas (lisible à l'endroit), chacun avec police, taille, couleur, rayon, contour et espacement. *Étaler sur* répartit le texte sur l'angle voulu (par exemple 335° pour un texte qui fait presque tout le tour). Un texte central sur plusieurs lignes, avec décalage vertical.
-- **Décors** : filets en arc qui relient les deux textes ; couronne de motifs répétés (★, •, ✦… nombre, rayon, taille, couleur, angle de départ, orientation) ; sélection circulaire créée à la validation, pour placer une photo ou un logo au centre.
+- **Décors** : filets en arc qui relient les deux textes ; couronne de motifs répétés (★, •, ✦… nombre, rayon, taille, couleur, angle de départ, orientation) ; zone centrale circulaire pour placer une photo ou un logo (voir ci-dessous).
 - **Effets** : finition métal (or, argent, bronze) appliquée à tout le badge, biseau (sur les textes ou sur tout le badge) et ombre portée.
 
 Le badge est centré sur l'image, ou sur la sélection s'il y en a une : faites d'abord une sélection sur votre photo pour y placer le badge.
+
+**Zone centrale.** Par défaut, elle est enregistrée comme **canal** dans l'onglet *Canaux* (nommé « Fontwork : zone centrale – … »), sans laisser de sélection active : on ne risque pas de peindre ou d'effacer seulement le centre par erreur. Votre sélection éventuelle est remise telle qu'elle était. Pour utiliser la zone : clic droit sur le canal ▸ **Canal vers sélection**, puis par exemple **Édition ▸ Coller dans la sélection** pour y mettre une photo. Le choix *Sélection active* reste possible dans l'onglet *Décors*. Quand le badge est modifié, son canal est mis à jour.
 
 #### Options communes
 
@@ -235,10 +235,12 @@ For round logos, medals, stamps and quotes in a circle.
 - **Templates**: *Club (deux anneaux)* (two-ring club), *Citation sur photo* (quote on a photo), *Médaille d'or* (gold medal), *Tampon encreur* (rubber stamp), *Écusson bleu et or* (blue and gold crest). The *Garder mes textes en changeant de modèle* (Keep my texts when changing template) box lets you try several templates without retyping your texts.
 - **Anneaux** (Rings): badge diameter and rotation; up to 4 rings, each with radius, background colour (can be transparent) and stroke (width, colour).
 - **Textes** (Texts): a top text (letters facing outwards) and a bottom text (upright and readable), each with font, size, colour, radius, outline and spacing. *Étaler sur* (Spread over) distributes the text over the chosen angle (for example 335° for text running almost all the way round). A multi-line centre text with vertical offset.
-- **Décors** (Decorations): arc lines joining the two texts; a ring of repeated symbols (★, •, ✦… count, radius, size, colour, start angle, orientation); a circular selection created when you confirm, to place a photo or logo in the centre.
+- **Décors** (Decorations): arc lines joining the two texts; a ring of repeated symbols (★, •, ✦… count, radius, size, colour, start angle, orientation); a circular centre area to place a photo or logo (see below).
 - **Effets** (Effects): metal finish (gold, silver, bronze) applied to the whole badge, bevel (on the texts or the whole badge) and drop shadow.
 
 The badge is centred on the image, or on the selection if there is one: make a selection on your photo first to place the badge there.
+
+**Centre area.** By default it is saved as a **channel** in the *Channels* tab (named "Fontwork : zone centrale – …"), without leaving an active selection, so you cannot accidentally paint or erase only the centre. Any selection you had is restored as it was. To use the area: right-click the channel ▸ **Channel to Selection**, then for example **Edit ▸ Paste Into** to put a photo in it. The *Sélection active* (Active selection) option is still available in the *Décors* tab. When the badge is edited, its channel is updated.
 
 #### Common options
 

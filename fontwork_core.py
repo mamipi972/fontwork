@@ -705,6 +705,7 @@ BADGE_DEFAULTS = {
     "b_sh_col": [0.0, 0.0, 0.0, 0.45],
     # sélection circulaire créée à la validation (pour une photo, un logo…)
     "b_sel_on": True, "b_sel_r": 62.0,
+    "b_sel_mode": "canal",        # canal (enregistré, sans sélection active) / selection
 }
 BADGE_DEFAULTS.update(_ring_defaults(1, True, 100.0, [0.12, 0.43, 0.23, 1.0], 6.0, WHITE))
 BADGE_DEFAULTS.update(_ring_defaults(2, True, 64.0, [0.83, 0.16, 0.13, 1.0], 5.0, WHITE))
