@@ -2,6 +2,9 @@
 
 Greffon Python pour GIMP 3.0 qui déforme du texte (arc, cercle, spirale, vague, entonnoir, etc.) et y ajoute un contour, un dégradé, une ombre portée et un relief 3D. Tout se règle depuis une seule fenêtre, avec un aperçu en direct. Aucun filtre natif de GIMP n'est utilisé.
 
+<img width="1017" height="722" alt="image" src="https://github.com/user-attachments/assets/14fe8e66-1ae7-4477-a6e8-cf4799b7284c" />
+
+
 ## Installation
 
 1. Copiez le dossier `fontwork` (qui contient `fontwork.py` et `fontwork_core.py`) dans le dossier des greffons de GIMP 3 :
