@@ -8,7 +8,7 @@ Greffon Python pour GIMP 3.0 qui déforme du texte (arc, cercle, spirale, vague,
 ## Installation
 
 1. Copiez le dossier `fontwork` (qui contient `fontwork.py` et `fontwork_core.py`) dans le dossier des greffons de GIMP 3 :
-   - **Windows** : `%APPDATA%\GIMP\3.0\plug-ins\`
+   - **Windows** : `%APPDATA%\GIMP\3.0\plug-ins\` (ou 3.2, selon votre version)
    - **Linux** : `~/.config/GIMP/3.0/plug-ins/`
    - **Linux (Flatpak)** : `~/.var/app/org.gimp.GIMP/config/GIMP/3.0/plug-ins/`
    - **macOS** : `~/Library/Application Support/GIMP/3.0/plug-ins/`
