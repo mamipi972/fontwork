@@ -18,7 +18,7 @@ Le dossier doit s'appeler `fontwork`, comme le script `fontwork.py`. Il contient
 
 #### Windows
 
-1. Copiez le dossier `fontwork` dans `%APPDATA%\GIMP\3.0\plug-ins\`.
+1. Copiez le dossier `fontwork` dans %APPDATA%\GIMP\3.0\plug-ins\ (ou 3.2, selon votre version)
 2. Redémarrez GIMP.
 
 #### macOS
