@@ -24,6 +24,9 @@ Indépendant de GIMP : n'utilise que pycairo + Pango (via PyGObject).
   4. Le résultat est dessiné avec relief 3D, ombre, contour et remplissage.
 """
 import math
+import os
+import re
+
 import cairo
 
 # --------------------------------------------------------------------------
@@ -121,7 +124,7 @@ def normalize(p):
         out.update({k: v for k, v in p.items() if k in DEFAULTS or k.startswith("_")})
     if out["shape"] not in SHAPE_KEYS:
         out["shape"] = "droit"
-    if out["mode"] not in ("texte", "badge"):
+    if out["mode"] not in ("texte", "badge", "chemin", "interieur"):
         out["mode"] = "texte"
     return out
 
@@ -613,16 +616,22 @@ def _paint_shadow(dest, src, col, dx, dy, blur):
     c.paint_with_alpha(col[3])
 
 
-def render(polys, bbox, p, scale=1.0):
+def render(polys, bbox, p, scale=1.0, ext=None, underlay=None):
     """
     Dessine le texte. Renvoie (surface ARGB32, (x0, y0)) où (x0, y0) est
     l'origine de la surface dans le repère de la géométrie (pleine taille).
+    ext : zone à couvrir (sinon calculée) ; underlay(ctx) : dessin placé dessous.
     """
     p = normalize(p)
-    x0, y0, x1, y1 = extents(bbox, p)
+    x0, y0, x1, y1 = ext or extents(bbox, p)
     W = max(1, int(math.ceil((x1 - x0) * scale)))
     H = max(1, int(math.ceil((y1 - y0) * scale)))
     surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
+    if underlay is not None:
+        c = cairo.Context(surf)
+        c.scale(scale, scale)
+        c.translate(-x0, -y0)
+        underlay(c)
     if not polys:
         return surf, (x0, y0)
 
@@ -940,7 +949,807 @@ def render_badge(g, p, scale=1.0):
 
 
 # --------------------------------------------------------------------------
-# Interface commune aux deux modes
+# Mode texte sur chemin : formes SVG ou tracé de l'image
+# --------------------------------------------------------------------------
+PATH_DEFAULTS = {
+    "path_src": "svg",             # svg / image (tracé sélectionné dans l'image)
+    "path_file": "builtin:etoile.svg",
+    "path_sub": 0,                 # contour suivi (0 = le plus long)
+    "path_size": 600.0,            # taille de la forme (plus grande dimension, px)
+    "path_rot": 0.0,               # rotation de la forme (°)
+    "path_pos": 0.0,               # centre du texte le long du chemin (%)
+    "path_side": "dessus",         # dessus / centre / dessous
+    "path_offset": 4.0,            # écart texte / chemin (px)
+    "path_reverse": False,         # inverser le sens (texte de l'autre côté)
+    "path_fit": 0.0,               # remplir x % du chemin (0 = naturel)
+    "path_repeat": False,          # répéter le texte pour faire le tour
+    "path_sep": " • ",
+    "path_rigid": True,            # lettres rigides (sinon courbées avec le chemin)
+    "path_show": True,             # dessiner aussi la forme
+    "path_fill": [0.44, 0.62, 0.82, 0.0],
+    "path_stroke": [0.23, 0.37, 0.54, 1.0],
+    "path_sw": 3.0,
+}
+DEFAULTS.update(PATH_DEFAULTS)
+PATH_KEYS = set(PATH_DEFAULTS)
+PATH_SIDES = [("dessus", "Au-dessus (à l'extérieur)"), ("centre", "Centré sur le chemin"),
+              ("dessous", "En dessous (à l'intérieur)")]
+
+# Dossiers des formes : "builtin" = fournies avec le greffon, "user" = vos SVG
+SHAPE_DIRS = {"builtin": os.path.join(os.path.dirname(os.path.abspath(__file__)), "formes"),
+              "user": None}
+# Fonction fournie par le greffon : renvoie [(points, fermé), ...] du tracé de l'image
+image_path_provider = None
+
+_NUM = r"[-+]?(?:\d*\.\d+|\d+\.?)(?:[eE][-+]?\d+)?"
+
+
+def _mat_mul(a, b):
+    return (a[0] * b[0] + a[2] * b[1], a[1] * b[0] + a[3] * b[1],
+            a[0] * b[2] + a[2] * b[3], a[1] * b[2] + a[3] * b[3],
+            a[0] * b[4] + a[2] * b[5] + a[4], a[1] * b[4] + a[3] * b[5] + a[5])
+
+
+def _parse_transform(s):
+    m = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)
+    for name, args in re.findall(r"(\w+)\s*\(([^)]*)\)", s or ""):
+        v = [float(x) for x in re.findall(_NUM, args)]
+        t = None
+        if name == "matrix" and len(v) == 6:
+            t = tuple(v)
+        elif name == "translate" and v:
+            t = (1, 0, 0, 1, v[0], v[1] if len(v) > 1 else 0)
+        elif name == "scale" and v:
+            t = (v[0], 0, 0, v[1] if len(v) > 1 else v[0], 0, 0)
+        elif name == "rotate" and v:
+            a = math.radians(v[0])
+            c, sn = math.cos(a), math.sin(a)
+            t = (c, sn, -sn, c, 0, 0)
+            if len(v) == 3:
+                t = _mat_mul(_mat_mul((1, 0, 0, 1, v[1], v[2]), t), (1, 0, 0, 1, -v[1], -v[2]))
+        elif name == "skewX" and v:
+            t = (1, 0, math.tan(math.radians(v[0])), 1, 0, 0)
+        elif name == "skewY" and v:
+            t = (1, math.tan(math.radians(v[0])), 0, 1, 0, 0)
+        if t:
+            m = _mat_mul(m, t)
+    return m
+
+
+def _arc_points(x1, y1, rx, ry, phi, fa, fs, x2, y2):
+    """Arc elliptique SVG (notation « A ») -> points (algorithme de la norme SVG)."""
+    if rx == 0 or ry == 0:
+        return [(x2, y2)]
+    rx, ry = abs(rx), abs(ry)
+    cp, sp = math.cos(math.radians(phi)), math.sin(math.radians(phi))
+    dx, dy = (x1 - x2) / 2, (y1 - y2) / 2
+    x1p, y1p = cp * dx + sp * dy, -sp * dx + cp * dy
+    lam = (x1p / rx) ** 2 + (y1p / ry) ** 2
+    if lam > 1:
+        rx, ry = rx * math.sqrt(lam), ry * math.sqrt(lam)
+    num = rx * rx * ry * ry - rx * rx * y1p * y1p - ry * ry * x1p * x1p
+    den = rx * rx * y1p * y1p + ry * ry * x1p * x1p
+    co = math.sqrt(max(0.0, num / den)) if den else 0.0
+    if fa == fs:
+        co = -co
+    cxp, cyp = co * rx * y1p / ry, -co * ry * x1p / rx
+    cx = cp * cxp - sp * cyp + (x1 + x2) / 2
+    cy = sp * cxp + cp * cyp + (y1 + y2) / 2
+
+    def ang(ux, uy, vx, vy):
+        a = math.atan2(ux * vy - uy * vx, ux * vx + uy * vy)
+        return a
+    t1 = ang(1, 0, (x1p - cxp) / rx, (y1p - cyp) / ry)
+    dt = ang((x1p - cxp) / rx, (y1p - cyp) / ry, (-x1p - cxp) / rx, (-y1p - cyp) / ry)
+    if not fs and dt > 0:
+        dt -= 2 * math.pi
+    elif fs and dt < 0:
+        dt += 2 * math.pi
+    n = max(6, int(abs(dt) / (math.pi / 36)))
+    out = []
+    for i in range(1, n + 1):
+        t = t1 + dt * i / n
+        x, y = rx * math.cos(t), ry * math.sin(t)
+        out.append((cp * x - sp * y + cx, sp * x + cp * y + cy))
+    return out
+
+
+def _parse_path_d(d):
+    toks = re.findall(r"[A-Za-z]|" + _NUM, d or "")
+    subs, cur, closed = [], [], False
+    i, cmd = 0, None
+    x = y = sx = sy = 0.0
+    lcx = lcy = None      # dernier point de contrôle (S, T)
+    prev = None
+
+    def num():
+        nonlocal i
+        v = float(toks[i])
+        i += 1
+        return v
+
+    def flag():
+        nonlocal i
+        t = toks[i]
+        if len(t) > 1 and t[0] in "01" and "." not in t:
+            toks[i] = t[1:]
+            return t[0] == "1"
+        i += 1
+        return float(t) != 0
+
+    def finish():
+        nonlocal cur, closed
+        if len(cur) > 1:
+            subs.append((cur, closed))
+        cur, closed = [], False
+
+    while i < len(toks):
+        if re.match(r"[A-Za-z]", toks[i]):
+            cmd = toks[i]
+            i += 1
+            if cmd in "Zz":
+                closed = True
+                x, y = sx, sy
+                finish()
+                prev = cmd
+                continue
+        if cmd is None:
+            break
+        rel = cmd.islower()
+        c = cmd.upper()
+        ox, oy = (x, y) if rel else (0.0, 0.0)
+        try:
+            if c == "M":
+                finish()
+                x, y = ox + num(), oy + num()
+                sx, sy = x, y
+                cur = [(x, y)]
+                cmd = "l" if rel else "L"      # coordonnées suivantes = lignes
+            elif c == "L":
+                x, y = ox + num(), oy + num()
+                cur.append((x, y))
+            elif c == "H":
+                x = ox + num()
+                cur.append((x, y))
+            elif c == "V":
+                y = oy + num()
+                cur.append((x, y))
+            elif c in "CS":
+                if c == "C":
+                    x1, y1 = ox + num(), oy + num()
+                else:
+                    if prev and prev.upper() in "CS" and lcx is not None:
+                        x1, y1 = 2 * x - lcx, 2 * y - lcy
+                    else:
+                        x1, y1 = x, y
+                x2, y2 = ox + num(), oy + num()
+                x3, y3 = ox + num(), oy + num()
+                for k in range(1, 21):
+                    t = k / 20
+                    mt = 1 - t
+                    cur.append((mt ** 3 * x + 3 * mt * mt * t * x1 + 3 * mt * t * t * x2 + t ** 3 * x3,
+                                mt ** 3 * y + 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t ** 3 * y3))
+                lcx, lcy = x2, y2
+                x, y = x3, y3
+            elif c in "QT":
+                if c == "Q":
+                    x1, y1 = ox + num(), oy + num()
+                else:
+                    if prev and prev.upper() in "QT" and lcx is not None:
+                        x1, y1 = 2 * x - lcx, 2 * y - lcy
+                    else:
+                        x1, y1 = x, y
+                x2, y2 = ox + num(), oy + num()
+                for k in range(1, 17):
+                    t = k / 16
+                    mt = 1 - t
+                    cur.append((mt * mt * x + 2 * mt * t * x1 + t * t * x2,
+                                mt * mt * y + 2 * mt * t * y1 + t * t * y2))
+                lcx, lcy = x1, y1
+                x, y = x2, y2
+            elif c == "A":
+                rx, ry, phi = num(), num(), num()
+                fa, fs = flag(), flag()
+                x2, y2 = ox + num(), oy + num()
+                cur += _arc_points(x, y, rx, ry, phi, fa, fs, x2, y2)
+                x, y = x2, y2
+            else:
+                i += 1
+        except (IndexError, ValueError):
+            break
+        if c not in "CSQT":
+            lcx = lcy = None
+        prev = cmd
+    finish()
+    return subs
+
+
+def _ellipse(cx, cy, rx, ry, n=120):
+    return [(cx + rx * math.cos(2 * math.pi * k / n), cy + ry * math.sin(2 * math.pi * k / n))
+            for k in range(n)]
+
+
+def parse_svg(filename):
+    """Lit un fichier SVG -> [(points, fermé), ...] (formes simples et chemins)."""
+    import xml.etree.ElementTree as ET
+    root = ET.parse(filename).getroot()
+    out = []
+
+    def f(el, name, default=0.0):
+        try:
+            return float(re.findall(_NUM, el.get(name, str(default)))[0])
+        except (IndexError, ValueError):
+            return default
+
+    def walk(el, m):
+        tag = el.tag.split("}")[-1]
+        if tag in ("defs", "clipPath", "mask", "symbol", "metadata", "style", "title", "desc"):
+            return
+        m = _mat_mul(m, _parse_transform(el.get("transform")))
+        subs = []
+        if tag == "path":
+            subs = _parse_path_d(el.get("d"))
+        elif tag in ("polygon", "polyline"):
+            v = [float(n) for n in re.findall(_NUM, el.get("points", ""))]
+            pts = list(zip(v[0::2], v[1::2]))
+            if len(pts) > 1:
+                subs = [(pts, tag == "polygon")]
+        elif tag == "rect":
+            x0, y0, w, h = f(el, "x"), f(el, "y"), f(el, "width"), f(el, "height")
+            if w > 0 and h > 0:
+                subs = [([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)], True)]
+        elif tag == "circle":
+            r = f(el, "r")
+            if r > 0:
+                subs = [(_ellipse(f(el, "cx"), f(el, "cy"), r, r), True)]
+        elif tag == "ellipse":
+            rx, ry = f(el, "rx"), f(el, "ry")
+            if rx > 0 and ry > 0:
+                subs = [(_ellipse(f(el, "cx"), f(el, "cy"), rx, ry), True)]
+        elif tag == "line":
+            subs = [([(f(el, "x1"), f(el, "y1")), (f(el, "x2"), f(el, "y2"))], False)]
+        for pts, closed in subs:
+            out.append(([(m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]) for x, y in pts],
+                        closed))
+        for child in el:
+            walk(child, m)
+
+    walk(root, (1.0, 0.0, 0.0, 1.0, 0.0, 0.0))
+    return out
+
+
+def resolve_shape(ref):
+    """'builtin:nom.svg', 'user:nom.svg' ou chemin complet -> chemin du fichier."""
+    if ref.startswith("builtin:"):
+        return os.path.join(SHAPE_DIRS["builtin"], ref[8:])
+    if ref.startswith("user:") and SHAPE_DIRS.get("user"):
+        return os.path.join(SHAPE_DIRS["user"], ref[5:])
+    return ref
+
+
+BUILTIN_NAMES = {"etoile.svg": "Étoile", "coeur.svg": "Cœur", "fleche.svg": "Flèche",
+                 "maison.svg": "Maison", "fleur.svg": "Fleur", "spirale.svg": "Spirale",
+                 "croix.svg": "Croix", "cercle.svg": "Cercle", "ovale.svg": "Ovale",
+                 "vague.svg": "Vague", "arche.svg": "Arche", "bulle.svg": "Bulle"}
+
+
+def list_shapes():
+    """[(référence, libellé)] : formes fournies puis vos formes."""
+    out = []
+    order = list(BUILTIN_NAMES)
+    d = SHAPE_DIRS["builtin"]
+    if os.path.isdir(d):
+        files = sorted((f for f in os.listdir(d) if f.lower().endswith(".svg")),
+                       key=lambda f: (order.index(f) if f in order else 99, f))
+        out += [("builtin:" + f, BUILTIN_NAMES.get(f, os.path.splitext(f)[0])) for f in files]
+    d = SHAPE_DIRS.get("user")
+    if d and os.path.isdir(d):
+        out += [("user:" + f, "★ " + os.path.splitext(f)[0])
+                for f in sorted(os.listdir(d)) if f.lower().endswith(".svg")]
+    return out
+
+
+_SVG_CACHE = {}
+
+
+def load_shape(ref):
+    fn = resolve_shape(ref)
+    key = (fn, os.path.getmtime(fn) if os.path.exists(fn) else 0)
+    if key not in _SVG_CACHE:
+        _SVG_CACHE[key] = parse_svg(fn)
+    return _SVG_CACHE[key]
+
+
+def _plen(pts, closed):
+    n = len(pts)
+    m = n if closed else n - 1
+    return sum(math.hypot(pts[(k + 1) % n][0] - pts[k][0], pts[(k + 1) % n][1] - pts[k][1])
+               for k in range(m))
+
+
+def _area(pts):
+    n = len(pts)
+    return sum(pts[k][0] * pts[(k + 1) % n][1] - pts[(k + 1) % n][0] * pts[k][1]
+               for k in range(n)) / 2
+
+
+class _Track:
+    """Chemin paramétré par la longueur (points interpolés, prolongé aux bouts)."""
+
+    def __init__(self, pts, closed):
+        if closed:
+            pts = pts + [pts[0]]
+        self.x = [p[0] for p in pts]
+        self.y = [p[1] for p in pts]
+        self.cum = [0.0]
+        for k in range(1, len(pts)):
+            self.cum.append(self.cum[-1] + math.hypot(self.x[k] - self.x[k - 1],
+                                                      self.y[k] - self.y[k - 1]))
+        self.L = max(self.cum[-1], 1e-6)
+        self.closed = closed
+
+    def at(self, s):
+        import bisect
+        n = len(self.cum)
+        if self.closed:
+            s %= self.L
+        elif s < 0 or s > self.L:
+            k = 0 if s < 0 else n - 2
+            dx, dy = self.x[k + 1] - self.x[k], self.y[k + 1] - self.y[k]
+            d = math.hypot(dx, dy) or 1.0
+            bx, by, base = (self.x[0], self.y[0], 0.0) if s < 0 else (self.x[-1], self.y[-1], self.L)
+            return bx + dx / d * (s - base), by + dy / d * (s - base)
+        k = min(max(bisect.bisect_right(self.cum, s) - 1, 0), n - 2)
+        seg = (self.cum[k + 1] - self.cum[k]) or 1e-9
+        t = (s - self.cum[k]) / seg
+        return (self.x[k] + (self.x[k + 1] - self.x[k]) * t,
+                self.y[k] + (self.y[k + 1] - self.y[k]) * t)
+
+
+def _glyph_groups(polys):
+    """Regroupe les contours par lettre (chevauchement horizontal)."""
+    items = sorted(((min(x for x, _ in q), max(x for x, _ in q), q) for q in polys),
+                   key=lambda t: t[0])
+    groups = []
+    for x0, x1, q in items:
+        if groups and x0 < groups[-1][1] - 0.5:
+            g = groups[-1]
+            groups[-1] = (g[0], max(g[1], x1), g[2] + [q])
+        else:
+            groups.append((x0, x1, [q]))
+    return groups
+
+
+def path_shapes(p):
+    """Contours de la forme (déjà mis à l'échelle), et contour suivi par le texte."""
+    if p["path_src"] == "image":
+        if image_path_provider is None:
+            raise ValueError("aucun tracé disponible")
+        subs = image_path_provider()
+        if not subs:
+            raise ValueError("aucun tracé dans l'image : dessinez-en un avec l'outil Chemins")
+        bb = _bbox([s[0] for s in subs])
+        cx, cy = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
+        subs = [(_rotate([pts], p["path_rot"], cx, cy)[0], c) for pts, c in subs]
+    else:
+        subs = load_shape(p["path_file"])
+        if not subs:
+            raise ValueError("aucun contour lisible dans ce SVG")
+        bb = _bbox([s[0] for s in subs])
+        cx, cy = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
+        k = max(10.0, p["path_size"]) / max(bb[2] - bb[0], bb[3] - bb[1], 1e-6)
+        subs = [(_rotate([[((x - cx) * k, (y - cy) * k) for x, y in pts]], p["path_rot"])[0], c)
+                for pts, c in subs]
+    idx = int(p["path_sub"])
+    if 1 <= idx <= len(subs):
+        main = subs[idx - 1]
+    else:
+        main = max(subs, key=lambda s: _plen(s[0], s[1]))
+    return subs, main
+
+
+def path_geometry(p):
+    p = normalize(p)
+    subs, (pts, closed) = path_shapes(p)
+    # nettoyage + orientation : sens horaire, départ en haut au centre
+    clean = [pts[0]]
+    for q in pts[1:]:
+        if math.hypot(q[0] - clean[-1][0], q[1] - clean[-1][1]) > 1e-6:
+            clean.append(q)
+    if closed and len(clean) > 2 and math.hypot(clean[0][0] - clean[-1][0],
+                                                 clean[0][1] - clean[-1][1]) < 1e-6:
+        clean.pop()
+    pts = clean
+    if closed and len(pts) > 2:
+        if _area(pts) < 0:
+            pts = pts[::-1]
+        bx0, by0, bx1, by1 = _bbox([pts])
+        top = min(range(len(pts)), key=lambda k: math.hypot(pts[k][0] - (bx0 + bx1) / 2,
+                                                               (pts[k][1] - by0) * 3))
+        pts = pts[top:] + pts[:top]
+    if p["path_reverse"]:
+        pts = [pts[0]] + pts[:0:-1] if closed else pts[::-1]
+    track = _Track(pts, closed and len(pts) > 2)
+    L = track.L
+
+    # texte sur une ligne
+    kx = max(5.0, p["width"]) / 100.0
+    text = " ".join((p["text"] or "").split("\n")).strip() or " "
+    tp = _text_params(text, p["font"], p["size"], p["spacing"])
+    fit = p["path_fit"]
+    if p["path_repeat"] and track.closed:
+        unit = text + p["path_sep"]
+        pu, inku, _ = _text_polygons(dict(tp, text=unit))
+        wu = max(1.0, (inku[2] if pu else p["size"]) * kx + p["size"] * 0.25)
+        tp["text"] = unit * max(1, int(L / wu))
+        fit = 100.0
+    if fit > 0:
+        polys0, ink0, _ = _text_polygons(dict(tp, spacing=0.0))
+        if polys0:
+            target = L * min(fit, 100.0) / 100.0 / kx
+            n = max(1, len(tp["text"]) - (0 if p["path_repeat"] else 1))
+            tp["spacing"] = max((target - ink0[2]) / n, -tp["size"] * 0.4)
+    polys, ink, logical = _text_polygons(tp)
+    shape_bbox = _bbox([s[0] for s in subs])
+    if not polys:
+        return {"polys": [], "tbbox": shape_bbox, "subs": subs, "sbbox": shape_bbox}
+    x0 = ink[0]
+    y0, h = logical[1], max(1.0, logical[3])
+    base = {"dessus": y0 + 0.78 * h, "centre": y0 + 0.52 * h,
+            "dessous": y0 + 0.22 * h}.get(p["path_side"], y0 + 0.78 * h)
+    off = p["path_offset"] * (1 if p["path_side"] != "dessous" else -1)
+    wtext = ink[2] * kx
+    if p["path_repeat"] and track.closed:
+        s0 = p["path_pos"] / 100.0 * L
+    else:
+        s0 = p["path_pos"] / 100.0 * L - wtext / 2
+
+    out = []
+    if p["path_rigid"]:
+        for gx0, gx1, group in _glyph_groups(polys):
+            cxg = (gx0 + gx1) / 2
+            hw = max((gx1 - gx0) / 2 * kx, h * 0.2)
+            sc = s0 + (cxg - x0) * kx
+            ax, ay = track.at(sc - hw)
+            bx, by = track.at(sc + hw)
+            th = math.atan2(by - ay, bx - ax)
+            c, sn = math.cos(th), math.sin(th)
+            px, py = track.at(sc)
+            for q in group:
+                pts2 = []
+                for x, y in _subdivide(q, max(0.5, h / 30.0)):
+                    lx, ly = (x - cxg) * kx, base - y + off
+                    pts2.append((px + lx * c + ly * sn, py + lx * sn - ly * c))
+                out.append(pts2)
+    else:
+        d = max(0.5, h * 0.05)
+        for q in polys:
+            pts2 = []
+            for x, y in _subdivide(q, max(0.5, h / 40.0)):
+                s = s0 + (x - x0) * kx
+                ax, ay = track.at(s - d)
+                bx, by = track.at(s + d)
+                th = math.atan2(by - ay, bx - ax)
+                px, py = track.at(s)
+                ly = base - y + off
+                pts2.append((px + ly * math.sin(th), py - ly * math.cos(th)))
+            out.append(pts2)
+    return {"polys": out, "tbbox": _bbox(out), "subs": subs, "sbbox": shape_bbox}
+
+
+def _draw_shape(c, subs, p):
+    fill, stroke, sw = p["path_fill"], p["path_stroke"], p["path_sw"]
+    closed = [s for s in subs if s[1]]
+    if closed and fill[3] > 0:
+        c.new_path()
+        for pts, _ in closed:
+            c.move_to(*pts[0])
+            for q in pts[1:]:
+                c.line_to(*q)
+            c.close_path()
+        c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+        c.set_source_rgba(*fill)
+        c.fill()
+        c.set_fill_rule(cairo.FILL_RULE_WINDING)
+    if sw > 0 and stroke[3] > 0:
+        c.set_line_width(sw)
+        c.set_line_join(cairo.LINE_JOIN_ROUND)
+        c.set_line_cap(cairo.LINE_CAP_ROUND)
+        c.set_source_rgba(*stroke)
+        for pts, cl in subs:
+            c.new_path()
+            c.move_to(*pts[0])
+            for q in pts[1:]:
+                c.line_to(*q)
+            if cl:
+                c.close_path()
+            c.stroke()
+
+
+def path_extents(g, p):
+    x0, y0, x1, y1 = extents(g["tbbox"], p)
+    if p["path_show"]:
+        e = p["path_sw"] / 2 + 2
+        sb = g["sbbox"]
+        x0, y0 = min(x0, sb[0] - e), min(y0, sb[1] - e)
+        x1, y1 = max(x1, sb[2] + e), max(y1, sb[3] + e)
+    return math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1)
+
+
+# --------------------------------------------------------------------------
+# Mode texte dans une forme : mise en page du texte à l'intérieur d'un SVG
+# --------------------------------------------------------------------------
+INSIDE_DEFAULTS = {
+    "in_align": "centre",          # gauche / centre / droite / justifie
+    "in_valign": "centre",         # haut / centre
+    "in_auto": True,               # taille ajustée pour remplir la forme
+    "in_margin": 12.0,             # marge intérieure (px)
+    "in_split": True,              # remplir les deux côtés d'un creux (haut du cœur…)
+    "in_breaks": "continu",       # continu : lignes vides = paragraphes ; vers : chaque ligne
+    "in_zones": "toutes",          # toutes / large / gauche / droite
+    "in_where": "dans",            # dans : à l'intérieur ; hors : autour de la forme
+    "in_frame_w": 250.0,           # hors : largeur du cadre (% de la forme)
+    "in_frame_h": 150.0,           # hors : hauteur du cadre (% de la forme)
+}
+DEFAULTS.update(INSIDE_DEFAULTS)
+INSIDE_KEYS = set(INSIDE_DEFAULTS)
+INSIDE_BREAKS = [("continu", "Texte continu (lignes vides = paragraphes)"),
+                 ("vers", "Respecter chaque retour à la ligne (vers)")]
+INSIDE_ZONES = [("toutes", "Toutes (des deux côtés)"), ("large", "La plus large"),
+                ("gauche", "À gauche seulement"), ("droite", "À droite seulement")]
+INSIDE_WHERE = [("dans", "À l'intérieur de la forme"),
+                ("hors", "À l'extérieur (le texte contourne la forme)")]
+INSIDE_ALIGNS = [("gauche", "À gauche"), ("centre", "Centré"), ("droite", "À droite"),
+                 ("justifie", "Justifié")]
+
+
+def _scan(edges, y):
+    """Intervalles [x0, x1] à l'intérieur des contours sur la ligne horizontale y."""
+    xs = []
+    for x1, y1, x2, y2 in edges:
+        if (y1 <= y < y2) or (y2 <= y < y1):
+            xs.append(x1 + (y - y1) * (x2 - x1) / (y2 - y1))
+    xs.sort()
+    return [(xs[k], xs[k + 1]) for k in range(0, len(xs) - 1, 2)]
+
+
+def _inter(a, b):
+    out, i, j = [], 0, 0
+    while i < len(a) and j < len(b):
+        lo, hi = max(a[i][0], b[j][0]), min(a[i][1], b[j][1])
+        if lo < hi:
+            out.append((lo, hi))
+        if a[i][1] < b[j][1]:
+            i += 1
+        else:
+            j += 1
+    return out
+
+
+def _band(edges, yt, yb, margin):
+    """Intervalles libres pour toute la hauteur d'une ligne (marge comprise)."""
+    ys = [yt - margin, yt, yt + (yb - yt) * 0.25, (yt + yb) / 2, yt + (yb - yt) * 0.75, yb,
+          yb + margin]
+    cur = None
+    for y in ys:
+        iv = _scan(edges, y)
+        cur = iv if cur is None else _inter(cur, iv)
+        if not cur:
+            return []
+    return [(a + margin, b - margin) for a, b in cur if b - a > 2 * margin]
+
+
+def _union(iv):
+    iv = sorted(iv)
+    out = []
+    for a, b in iv:
+        if out and a <= out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], b))
+        else:
+            out.append((a, b))
+    return out
+
+
+def _band_outside(edges, yt, yb, margin, fx0, fx1):
+    """Intervalles libres hors de la forme (marge comprise), dans le cadre [fx0, fx1]."""
+    ys = [yt - margin, yt, yt + (yb - yt) * 0.25, (yt + yb) / 2, yt + (yb - yt) * 0.75, yb,
+          yb + margin]
+    busy = []
+    for y in ys:
+        busy += [(a - margin, b + margin) for a, b in _scan(edges, y)]
+    free, x = [], fx0
+    for a, b in _union(busy):
+        if a > x:
+            free.append((x, min(a, fx1)))
+        x = max(x, b)
+        if x >= fx1:
+            break
+    if x < fx1:
+        free.append((x, fx1))
+    return [(a, b) for a, b in free if b - a > 1]
+
+
+def _word_outlines(p, words):
+    """Contours de chaque mot, mesurés en une seule mise en page (un mot par ligne)."""
+    tp = _text_params("\n".join(words), p["font"], p["size"], p["spacing"])
+    tp["align"] = "left"
+    polys, ink, logical = _text_polygons(tp)
+    n = len(words)
+    lh = max(1.0, logical[3] / max(1, n))
+    y0 = logical[1]
+    per = [[] for _ in words]
+    for q in polys:
+        cy = (min(y for _, y in q) + max(y for _, y in q)) / 2
+        k = min(n - 1, max(0, int((cy - y0) / lh)))
+        per[k].append(q)
+    out = []
+    for k, qs in enumerate(per):
+        if qs:
+            bx0, _, bx1, _ = _bbox(qs)
+            top = y0 + k * lh
+            out.append(([[(x - bx0, y - top) for x, y in q] for q in qs], bx1 - bx0))
+        else:
+            out.append(([], p["size"] * 0.3))
+    return out, lh
+
+
+def _layout_inside(edges, top, bottom, words, widths, breaks, lh, space, s, p, start,
+                   frame=None):
+    """Place les mots ligne par ligne. Renvoie (placements, nb placés, bas du texte)."""
+    margin = p["in_margin"]
+    line_h = lh * s
+    step = line_h * max(0.5, p["line_spacing"])
+    y = start
+    i, n = 0, len(words)
+    placed, last_bottom, first_top = [], None, None
+    while i < n and y + line_h <= bottom + 1e-6:
+        if frame is None:
+            segs = _band(edges, y, y + line_h, margin)
+        else:
+            segs = _band_outside(edges, y, y + line_h, margin, frame[0], frame[1])
+        zones = p["in_zones"]
+        if zones == "toutes" and not p["in_split"]:
+            zones = "large"          # compatibilité avec les anciens réglages
+        if segs and zones == "large":
+            segs = [max(segs, key=lambda sg: sg[1] - sg[0])]
+        elif segs and zones == "gauche":
+            segs = segs[:1]
+        elif segs and zones == "droite":
+            segs = segs[-1:]
+        line_items = []
+        for sx0, sx1 in segs:
+            if i >= n:
+                break
+            seg_words, width = [], 0.0
+            while i < n:
+                w = widths[i] * s
+                need = w if not seg_words else width + space * s + w
+                if need <= sx1 - sx0 + 1e-6:
+                    seg_words.append(i)
+                    width = need
+                    i += 1
+                    if i in breaks:
+                        break
+                else:
+                    break
+            if seg_words:
+                line_items.append((sx0, sx1, seg_words, width))
+            if i in breaks and seg_words:
+                break
+        for sx0, sx1, seg_words, width in line_items:
+            free = (sx1 - sx0) - width
+            gap = space * s
+            last_of_par = seg_words[-1] + 1 in breaks or seg_words[-1] + 1 >= n
+            align = p["in_align"]
+            if align == "justifie":
+                # justification limitée : au-delà de 3 espaces entre deux mots, la
+                # ligne reste en partie non justifiée (pas de « rivières » de blanc)
+                if len(seg_words) > 1 and not last_of_par:
+                    gap += min(free / (len(seg_words) - 1), space * s * 2.0)
+                x = sx0
+            elif align == "gauche":
+                x = sx0
+            elif align == "droite":
+                x = sx0 + free
+            else:
+                x = sx0 + free / 2
+            for k in seg_words:
+                placed.append((k, x, y))
+                x += widths[k] * s + gap
+        if line_items:
+            first_top = y if first_top is None else first_top
+            last_bottom = y + line_h
+        elif i < n and i in breaks and placed and placed[-1][0] == i - 1:
+            pass
+        y += step
+    return placed, i, first_top, last_bottom
+
+
+def inside_geometry(p):
+    p = normalize(p)
+    subs, _ = path_shapes(p)
+    closed = [s for s in subs if s[1]] or subs
+    edges = []
+    for pts, _ in closed:
+        m = len(pts)
+        for k in range(m):
+            x1, y1 = pts[k]
+            x2, y2 = pts[(k + 1) % m]
+            if y1 != y2:
+                edges.append((x1, y1, x2, y2))
+    sb = _bbox([s[0] for s in subs])
+    empty = {"polys": [], "tbbox": sb, "subs": subs, "sbbox": sb, "missing": 0, "scale": 1.0}
+
+    # mots et fins de paragraphe
+    words, breaks = [], set()
+    text = p["text"] or ""
+    if p["in_breaks"] == "continu":
+        # un retour simple devient une espace ; une ligne vide sépare les paragraphes
+        text = "\n".join(" ".join(b.split("\n")) for b in re.split(r"\n\s*\n", text))
+    for par in text.split("\n"):
+        ws = par.split()
+        if ws:
+            words += ws
+            breaks.add(len(words))
+    if not words:
+        return empty
+    uniq = list(dict.fromkeys(words))
+    outl, lh = _word_outlines(p, uniq)
+    kx = max(5.0, p["width"]) / 100.0
+    idx = {w: k for k, w in enumerate(uniq)}
+    widths = [outl[idx[w]][1] * kx for w in words]
+    space = p["size"] * 0.33 * kx + p["spacing"]
+    frame = None
+    top, bottom = sb[1], sb[3]
+    if p["in_where"] == "hors":
+        cx, cy = (sb[0] + sb[2]) / 2, (sb[1] + sb[3]) / 2
+        hw = (sb[2] - sb[0]) / 2 * max(100.0, p["in_frame_w"]) / 100.0
+        hh = (sb[3] - sb[1]) / 2 * max(100.0, p["in_frame_h"]) / 100.0
+        frame = (cx - hw, cx + hw)
+        top, bottom = cy - hh, cy + hh
+
+    def run(s, start):
+        return _layout_inside(edges, top, bottom, words, widths, breaks, lh, space, s, p,
+                              start, frame)
+
+    s = 1.0
+    if p["in_auto"]:
+        lo, hi = 0.02, 1.0
+        while run(hi, top)[1] >= len(words) and hi < 64:
+            lo, hi = hi, hi * 2
+        for _ in range(22):
+            mid = (lo + hi) / 2
+            if run(mid, top)[1] >= len(words):
+                lo = mid
+            else:
+                hi = mid
+        s = lo
+    placed, count, ftop, fbot = run(s, top)
+    if p["in_valign"] == "centre" and fbot is not None:
+        best = (placed, count)
+        shift = 0.0
+        for _ in range(4):
+            free = bottom - fbot
+            if free <= 1:
+                break
+            shift += free / 2
+            pl2, c2, ft2, fb2 = run(s, top + shift)
+            if c2 < count:
+                break
+            best, fbot = (pl2, c2), fb2
+        placed, count = best
+
+    out = []
+    for k, x, y in placed:
+        qs = outl[idx[words[k]]][0]
+        for q in qs:
+            out.append([(x + qx * s * kx, y + qy * s) for qx, qy in q])
+    return {"polys": out, "tbbox": _bbox(out) if out else sb, "subs": subs, "sbbox": sb,
+            "missing": len(words) - count, "scale": s, "size": p["size"] * s}
+
+
+# --------------------------------------------------------------------------
+# Interface commune aux quatre modes
 # --------------------------------------------------------------------------
 def prepare(p):
     """Géométrie pleine taille : {'mode', 'polys', 'bbox', 'ext', ...}."""
@@ -950,6 +1759,10 @@ def prepare(p):
         e = g["ext"]
         return {"mode": "badge", "g": g, "polys": g["polys"], "bbox": (-e, -e, e, e),
                 "ext": badge_extents(g, p), "R": g["R"]}
+    if p["mode"] in ("chemin", "interieur"):
+        g = path_geometry(p) if p["mode"] == "chemin" else inside_geometry(p)
+        return {"mode": p["mode"], "g": g, "polys": g["polys"], "bbox": g["sbbox"],
+                "ext": path_extents(g, p)}
     polys, bbox = geometry(p)
     return {"mode": "texte", "polys": polys, "bbox": bbox, "ext": extents(bbox, p)}
 
@@ -958,6 +1771,11 @@ def draw(prep, p, scale=1.0):
     """Renvoie (surface, origine) pour une géométrie issue de prepare()."""
     if prep["mode"] == "badge":
         return render_badge(prep["g"], p, scale)
+    if prep["mode"] in ("chemin", "interieur"):
+        g = prep["g"]
+        p = normalize(p)
+        under = (lambda c: _draw_shape(c, g["subs"], p)) if p["path_show"] else None
+        return render(g["polys"], g["tbbox"], p, scale, ext=path_extents(g, p), underlay=under)
     return render(prep["polys"], prep["bbox"], p, scale)
 
 
@@ -1042,7 +1860,7 @@ PRESETS = [
                         shadow_blur=5, shadow_col=_c("000000", 0.4), extrude=0)),
 ]
 CONTENT_KEYS = {"text", "font", "size", "spacing", "line_spacing", "align"}
-PRESET_KEYS = set(DEFAULTS) - CONTENT_KEYS - BADGE_KEYS - {"mode"}
+PRESET_KEYS = set(DEFAULTS) - CONTENT_KEYS - BADGE_KEYS - PATH_KEYS - INSIDE_KEYS - {"mode"}
 
 
 def _rings(*rings):
@@ -1108,7 +1926,7 @@ def apply_preset(p, preset):
     base = {k: DEFAULTS[k] for k in PRESET_KEYS}
     base.update({k: v for k, v in preset.items() if k in PRESET_KEYS})
     out.update(base)
-    out["mode"] = "texte"
+    out["mode"] = out["mode"] if out["mode"] in ("chemin", "interieur") else "texte"
     return out
 
 
@@ -1139,4 +1957,120 @@ def total_extents(prep, p):
     p = normalize(p)
     if prep["mode"] == "badge":
         return badge_extents(prep["g"], p)
+    if prep["mode"] in ("chemin", "interieur"):
+        return path_extents(prep["g"], p)
     return extents(prep["bbox"], p)
+
+
+def _pp(shape, style, **path):
+    d = {"path_file": "builtin:" + shape}
+    d.update(path)
+    d.update(style)
+    return d
+
+
+_GOLD = dict(fill_mode="metal_or", grad_angle=70, outline_w=1.5, outline_col=_c("5a3d00"),
+             shadow=True, shadow_dx=2, shadow_dy=3, shadow_blur=3, shadow_col=_c("000000", 0.4))
+PATH_PRESETS = [
+    ("Étoile dorée", _pp("etoile.svg", _GOLD, path_fit=92, path_show=True,
+                         path_stroke=_c("c89b2a"), path_sw=4, path_fill=_c("fff4c9", 0.0))),
+    ("Cœur tendre", _pp("coeur.svg", dict(fill_mode="gradient", fill1=_c("ff6fa5"),
+                                          fill2=_c("c2185b"), grad_angle=90, outline_w=0,
+                                          shadow=False),
+                        path_repeat=True, path_sep=" ♥ ", path_show=True,
+                        path_fill=_c("ffd6e5", 1.0), path_stroke=_c("c2185b"), path_sw=3)),
+    ("Flèche", _pp("fleche.svg", dict(fill_mode="solid", fill1=_c("1d4f91"), outline_w=0,
+                                      shadow=False),
+                   path_fit=90, path_show=True, path_fill=_c("6f9dd0", 1.0),
+                   path_stroke=_c("3a5f8a"), path_sw=2)),
+    ("Maison", _pp("maison.svg", dict(fill_mode="solid", fill1=_c("7a3b12"), outline_w=0,
+                                      shadow=False),
+                   path_side="dessous", path_offset=6, path_fit=90, path_show=True,
+                   path_fill=_c("fff1dc", 1.0), path_stroke=_c("7a3b12"), path_sw=4)),
+    ("Fleur", _pp("fleur.svg", dict(fill_mode="gradient", fill1=_c("9c27b0"), fill2=_c("e040fb"),
+                                    grad_angle=0, outline_w=0, shadow=False),
+                  path_repeat=True, path_sep=" ✿ ", path_show=True,
+                  path_fill=_c("f3e5f5", 1.0), path_stroke=_c("9c27b0"), path_sw=3)),
+    ("Spirale", _pp("spirale.svg", dict(fill_mode="solid", fill1=_c("222222"), outline_w=0,
+                                        shadow=False),
+                    path_size=800, path_pos=50, path_fit=98, path_side="centre",
+                    path_offset=0, path_show=False)),
+    ("Croix étoilée", _pp("croix.svg", dict(fill_mode="gradient", fill1=_c("4fc3f7"),
+                                            fill2=_c("0d47a1"), grad_angle=90, outline_w=0,
+                                            shadow=False),
+                          path_fit=95, path_show=True, path_fill=_c("e3f2fd", 1.0),
+                          path_stroke=_c("0d47a1"), path_sw=2)),
+    ("Cercle continu", _pp("cercle.svg", dict(fill_mode="solid", fill1=_c("e65100"),
+                                              outline_w=0, shadow=False),
+                           path_repeat=True, path_sep=" • ", path_show=False)),
+    ("Vague", _pp("vague.svg", dict(fill_mode="gradient", fill1=_c("00bcd4"), fill2=_c("01579b"),
+                                    grad_angle=90, outline_w=0, shadow=False),
+                  path_size=900, path_pos=50, path_fit=95, path_show=False)),
+]
+
+
+def apply_path_preset(p, preset):
+    """Modèle de texte sur chemin : forme + style, texte et police conservés."""
+    out = normalize(p)
+    base = {k: DEFAULTS[k] for k in PRESET_KEYS | PATH_KEYS}
+    base.update({k: v for k, v in preset.items() if k in PRESET_KEYS | PATH_KEYS})
+    out.update(base)
+    out["mode"] = "chemin"
+    return out
+
+
+INSIDE_PRESETS = [
+    ("Cœur", _pp("coeur.svg", dict(fill_mode="gradient", fill1=_c("e91e63"), fill2=_c("880e4f"),
+                                   grad_angle=90, outline_w=0, shadow=False),
+                 path_show=True, path_fill=_c("ffe4ee", 1.0), path_stroke=_c("c2185b"),
+                 path_sw=4, in_align="centre", in_margin=14)),
+    ("Étoile", _pp("etoile.svg", dict(fill_mode="solid", fill1=_c("5a3d00"), outline_w=0,
+                                      shadow=False),
+                   path_show=True, path_fill=_c("ffe082", 1.0), path_stroke=_c("c89b2a"),
+                   path_sw=4, in_align="centre", in_margin=8)),
+    ("Maison", _pp("maison.svg", dict(fill_mode="solid", fill1=_c("4e2a0e"), outline_w=0,
+                                      shadow=False),
+                   path_show=True, path_fill=_c("fff1dc", 1.0), path_stroke=_c("7a3b12"),
+                   path_sw=5, in_align="justifie", in_margin=16)),
+    ("Bulle", _pp("bulle.svg", dict(fill_mode="solid", fill1=_c("1a1a1a"), outline_w=0,
+                                    shadow=False),
+                  path_show=True, path_fill=_c("ffffff", 1.0), path_stroke=_c("1a1a1a"),
+                  path_sw=4, in_align="centre", in_margin=18)),
+    ("Cercle", _pp("cercle.svg", dict(fill_mode="gradient", fill1=_c("0277bd"), fill2=_c("01579b"),
+                                      grad_angle=90, outline_w=0, shadow=False),
+                   path_show=True, path_fill=_c("e1f5fe", 1.0), path_stroke=_c("0277bd"),
+                   path_sw=3, in_align="justifie", in_margin=14)),
+    ("Fleur", _pp("fleur.svg", dict(fill_mode="gradient", fill1=_c("6a1b9a"), fill2=_c("ab47bc"),
+                                    grad_angle=90, outline_w=0, shadow=False),
+                  path_show=True, path_fill=_c("f3e5f5", 1.0), path_stroke=_c("8e24aa"),
+                  path_sw=3, in_align="centre", in_margin=10)),
+    ("Texte seul", _pp("coeur.svg", dict(fill_mode="solid", fill1=_c("c2185b"), outline_w=0,
+                                         shadow=False),
+                       path_show=False, in_align="centre", in_margin=4)),
+]
+
+
+def apply_inside_preset(p, preset):
+    """Modèle de texte dans une forme : forme + style, texte et police conservés."""
+    keys = PRESET_KEYS | PATH_KEYS | INSIDE_KEYS
+    out = normalize(p)
+    base = {k: DEFAULTS[k] for k in keys}
+    base.update({k: v for k, v in preset.items() if k in keys})
+    out.update(base)
+    out["mode"] = "interieur"
+    return out
+
+
+INSIDE_PRESETS += [
+    ("Autour d'un cœur", _pp("coeur.svg", dict(fill_mode="solid", fill1=_c("333333"),
+                                               outline_w=0, shadow=False),
+                             path_show=True, path_fill=_c("e91e63", 1.0), path_stroke=_c("880e4f"),
+                             path_sw=3, path_size=300, in_where="hors", in_align="justifie",
+                             in_margin=14, in_frame_w=270, in_frame_h=170)),
+    ("Autour d'une étoile", _pp("etoile.svg", dict(fill_mode="solid", fill1=_c("1d3557"),
+                                                   outline_w=0, shadow=False),
+                                path_show=True, path_fill=_c("ffc107", 1.0),
+                                path_stroke=_c("c89b2a"), path_sw=3, path_size=300,
+                                in_where="hors", in_align="centre", in_margin=12,
+                                in_frame_w=250, in_frame_h=160)),
+]

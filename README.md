@@ -1,24 +1,26 @@
 # Texte Fontwork — GIMP 3
 
-**[Français](#français)** · **[English](#english)**
+**[Français](#français)** · **[English](#english)** · Version française seule : [LISEZMOI.md](LISEZMOI.md)
 
 Licence / License : [GNU GPL v3 ou ultérieure / or later](#licence--license) — comme GIMP / same as GIMP.
 
----
-<img width="1012" height="727" alt="image" src="https://github.com/user-attachments/assets/1b771d6b-d664-4e14-a104-1408a389a1e8" />
+<img width="1012" height="727" alt="Fenêtre du greffon Texte Fontwork / Texte Fontwork plug-in window" src="https://github.com/user-attachments/assets/1b771d6b-d664-4e14-a104-1408a389a1e8" />
 
+---
 
 ## Français
 
-Greffon Python pour GIMP 3 qui déforme du texte (arc, cercle, spirale, vague, entonnoir, etc.) et y ajoute un contour, un dégradé, une ombre portée et un relief 3D. Tout se règle depuis une seule fenêtre, avec un aperçu en direct. Aucun filtre natif de GIMP n'est utilisé.
+Greffon Python pour GIMP 3 qui met en forme du texte de quatre façons : texte déformé (arc, cercle, spirale, vague, entonnoir…), texte qui suit le contour d'une forme, texte mis en page à l'intérieur d'une forme (cœur, étoile, bulle…) ou autour d'elle et badges circulaires. Contour, dégradé, métal, biseau, ombre portée et relief 3D s'ajoutent au texte. Tout se règle depuis une seule fenêtre, avec un aperçu en direct, et le texte reste modifiable. Aucun filtre natif de GIMP n'est utilisé.
 
 ### Installation
 
-Le dossier doit s'appeler `fontwork`, comme le script `fontwork.py`. Il contient `fontwork.py`, `fontwork_core.py`, `README.md` et `LICENSE`.
+Les chemins ci-dessous sont ceux de GIMP 3.0. Avec une version plus récente (3.2…), le dossier peut porter un autre numéro : le chemin exact est indiqué dans GIMP, menu **Édition ▸ Préférences ▸ Dossiers ▸ Greffons**.
+
+Le dossier doit s'appeler `fontwork`, comme le script `fontwork.py`. Il contient `fontwork.py`, `fontwork_core.py`, le dossier `formes` (formes SVG fournies), `README.md`, `LISEZMOI.md` et `LICENSE`.
 
 #### Windows
 
-1. Copiez le dossier `fontwork` dans %APPDATA%\GIMP\3.0\plug-ins\ (ou 3.2, selon votre version)
+1. Copiez le dossier `fontwork` dans `%APPDATA%\GIMP\3.0\plug-ins\` (ou `3.2`, selon votre version de GIMP).
 2. Redémarrez GIMP.
 
 #### macOS
@@ -67,7 +69,7 @@ Le greffon se trouve ensuite dans le menu **Calque ▸ Texte Fontwork…**
 
 ### Utilisation
 
-Le greffon a deux modes, choisis en haut de la fenêtre : **Texte déformé** et **Badge / sceau**. Chaque mode propose des **modèles** de départ ; tout reste ensuite modifiable (textes, couleurs, tailles, rayons…). Le bouton *Enregistrer…* garde vos propres réglages comme modèle personnel ; ils apparaissent ensuite dans la liste avec une ★.
+Le greffon a quatre modes, choisis en haut de la fenêtre : **Texte déformé**, **Texte sur chemin**, **Texte dans ou hors d'une forme** et **Badge / sceau**. Chaque mode propose des **modèles** de départ ; tout reste ensuite modifiable (textes, couleurs, tailles, rayons…). Le bouton *Enregistrer…* garde vos propres réglages comme modèle personnel ; ils apparaissent ensuite dans la liste avec une ★.
 
 #### Mode Texte déformé
 
@@ -78,6 +80,34 @@ Le greffon a deux modes, choisis en haut de la fenêtre : **Texte déformé** et
 - **Biseau** : relief bombé ou gravé sur le remplissage, avec profondeur, douceur, direction de la lumière, éclat et ombre.
 - **Ombre** : décalage, flou, couleur et opacité.
 - **3D** : relief (extrusion) avec profondeur, direction et couleur, automatiquement assombri vers l'arrière ; rotation 3D (basculer, pivoter) avec perspective réglable.
+
+#### Mode Texte sur chemin
+
+Une phrase qui suit le contour d'une forme : étoile, cœur, flèche, maison, fleur, spirale, croix, cercle, ovale, vague, arche, bulle… Les onglets Texte, Couleurs, Biseau, Ombre et 3D sont les mêmes que pour le texte déformé (police, taille, espacement, largeur, dégradé, métal, contour…). L'onglet **Chemin** remplace l'onglet Forme.
+
+- **Modèles** : *Étoile dorée*, *Cœur tendre*, *Flèche*, *Maison*, *Fleur*, *Spirale*, *Croix étoilée*, *Cercle continu*, *Vague*. Les styles de lettres du mode texte sont aussi proposés (« Lettres : … ») : ils changent l'apparence sans changer la forme.
+- **Chemin suivi** : une forme SVG de la bibliothèque, ou le **tracé sélectionné dans l'image** (dessiné avec l'outil Chemins) ; dans ce cas le texte se place exactement sur le tracé.
+- **Vos propres formes** : bouton *Ajouter un SVG…*, qui copie le fichier dans votre bibliothèque (`fontwork-formes` dans le dossier de profil GIMP, chemin affiché dans l'onglet). Vous pouvez aussi y déposer des SVG directement. Sont lus : chemins (`path`, y compris courbes et arcs), polygones, polylignes, rectangles, cercles, ellipses, lignes et transformations. Le texte et les images intégrés dans un SVG sont ignorés.
+- **Forme** : taille, rotation, et contour suivi quand le SVG en contient plusieurs (0 = le plus long).
+- **Texte sur le chemin** : position le long du chemin, côté (au-dessus / centré / en dessous, c'est-à-dire à l'extérieur ou à l'intérieur d'une forme fermée), écart, inversion du sens, *Remplir le chemin* (répartit le texte sur x % de la longueur), *Répéter le texte tout autour* avec un séparateur (•, ♥, ✿…), lettres rigides ou courbées.
+- **Dessiner la forme** : fond, trait et épaisseur, ou forme invisible pour ne garder que le texte.
+
+Conseil : sur les angles rentrants (creux du cœur, pétales de la fleur), les lettres peuvent se toucher ; augmentez l'écart, l'espacement, ou décochez *Lettres rigides*.
+
+#### Mode Texte dans ou hors d'une forme
+
+Le texte est mis en page **à l'intérieur** d'une forme (chaque ligne prend la largeur disponible à sa hauteur, comme un paragraphe qui épouse le contour d'un cœur) ou **à l'extérieur** : le texte remplit alors un cadre et contourne la forme, comme dans un magazine où le texte habille une image. Les formes sont les mêmes que pour le texte sur chemin (bibliothèque, vos SVG, ou tracé fermé de l'image). Les onglets Texte, Couleurs, Biseau, Ombre et 3D restent disponibles ; l'onglet **Forme SVG** contient la forme et la mise en page.
+
+- **Modèles** : à l'intérieur, *Cœur*, *Étoile*, *Maison*, *Bulle*, *Cercle*, *Fleur*, *Texte seul* (forme invisible : seul le texte dessine la silhouette) ; à l'extérieur, *Autour d'un cœur* et *Autour d'une étoile*. Les styles de lettres (« Lettres : … ») sont aussi proposés.
+- **Placer le texte** : à l'intérieur de la forme, ou à l'extérieur. À l'extérieur, **Largeur du cadre** et **Hauteur du cadre** (en % de la taille de la forme) fixent la zone de texte autour de la forme ; la forme est au centre du cadre.
+- **Ajuster la taille pour remplir la forme** : la taille du texte est calculée pour occuper au mieux la place disponible ; la taille obtenue est affichée sous l'aperçu. Décochée, la taille choisie dans l'onglet Texte est utilisée, et un avertissement indique les mots qui ne tiennent pas.
+- **Alignement** : à gauche, centré, à droite ou justifié. **Position verticale** : en haut ou centrée.
+- **Marge intérieure** : distance entre le texte et le bord de la forme.
+- **Zones utilisées sur chaque ligne** : *toutes* (le texte passe des deux côtés de la forme, ou dans les deux lobes du haut d'un cœur), *la plus large*, *à gauche seulement* ou *à droite seulement*. À l'extérieur, *à gauche seulement* donne une colonne de texte qui habille le côté gauche de la forme.
+- **Retours à la ligne** : *texte continu* (par défaut : un retour simple devient une espace, seule une ligne vide commence un nouveau paragraphe ; idéal pour remplir la forme) ou *respecter chaque retour à la ligne* (un vers par ligne, pour la poésie). L'interligne se règle dans l'onglet Texte.
+- **Justifié** : l'espace ajouté entre deux mots est limité, pour éviter les grands blancs ; une ligne trop courte reste alignée à gauche, comme la dernière ligne d'un paragraphe.
+
+Conseil : les formes étroites (branches d'étoile, pointe du cœur) donnent un texte plus petit à l'intérieur ; à l'extérieur, un cadre trop étroit laisse des lignes vides à hauteur de la partie la plus large de la forme : élargissez le cadre ou réduisez la marge.
 
 #### Mode Badge / sceau
 
@@ -96,7 +126,7 @@ Le badge est centré sur l'image, ou sur la sélection s'il y en a une : faites 
 #### Options communes
 
 - **Aperçu en direct sur l'image** : le calque se met à jour dans le canevas pendant que vous réglez. Ces essais n'entrent pas dans l'historique d'annulation.
-- **Créer aussi un tracé** : crée en plus un chemin vectoriel du texte déformé, utile pour un détourage ou un tracé personnalisé.
+- **Créer aussi un tracé** : crée en plus un chemin vectoriel du texte, utile pour un détourage ou un tracé personnalisé.
 - **Fusionner avec le calque du dessous** : décochée par défaut. Cochée, le texte est fusionné dans le calque inférieur et n'est plus modifiable par le greffon.
 
 Le texte est placé au centre de l'image, ou au centre de la sélection s'il y en a une.
@@ -105,7 +135,7 @@ Le texte est placé au centre de l'image, ou au centre de la sélection s'il y e
 
 Le bouton **Réinitialiser**, à côté de la liste des modèles, remet tous les réglages du mode en cours à leurs valeurs d'origine. Deux options : *Garder mes textes*, et *Supprimer aussi mes modèles personnels (★)*. Les réglages remis à zéro ne s'appliquent au calque qu'après **Valider**.
 
-Réinitialisation manuelle, GIMP fermé : supprimez `fontwork-last.json` (derniers réglages utilisés) et, si vous le souhaitez, `fontwork-styles.json` (vos modèles ★), dans le dossier de profil GIMP (`%APPDATA%\GIMP\3.0\` sous Windows, `~/.config/GIMP/3.0/` sous Linux).
+Réinitialisation manuelle, GIMP fermé : supprimez `fontwork-last.json` (derniers réglages utilisés) et, si vous le souhaitez, `fontwork-styles.json` (vos modèles ★), dans le dossier de profil GIMP (`%APPDATA%\GIMP\3.0\` sous Windows, `~/.config/GIMP/3.0/` sous Linux  ; le numéro peut être `3.2` selon votre version).
 
 ### Modifier un texte existant (édition non destructive)
 
@@ -130,7 +160,7 @@ Le greffon n'est pas lui-même un filtre NDE : GIMP 3 réserve ce mécanisme aux
 - Les contours du texte sont produits par le moteur texte de GIMP : toutes les polices connues de GIMP sont disponibles, y compris celles de ses dossiers de polices.
 - Le greffon fonctionne sur les images RVB et en niveaux de gris. Une image indexée doit d'abord être convertie : **Image ▸ Mode ▸ RVB**.
 - L'entonnoir et la pyramide donnent de meilleurs résultats avec un texte sur 2 ou 3 lignes.
-- En cas d'erreur, le détail est écrit dans le fichier `fontwork-erreurs.log` du dossier de profil GIMP (`%APPDATA%\GIMP\3.0\` sous Windows, `~/.config/GIMP/3.0/` sous Linux). Joignez-le si vous signalez un problème.
+- En cas d'erreur, le détail est écrit dans le fichier `fontwork-erreurs.log` du dossier de profil GIMP (`%APPDATA%\GIMP\3.0\` sous Windows, `~/.config/GIMP/3.0/` sous Linux  ; le numéro peut être `3.2` selon votre version). Joignez-le si vous signalez un problème.
 
 ### Greffons et outils similaires
 
@@ -145,6 +175,8 @@ Légende : <span style="color:#1a7f37">vert = oui</span> · <span style="color:#
 | Méthode | <span style="color:#d97706">déformation des contours vectoriels</span> | <span style="color:#d97706">contours vectoriels</span> | <span style="color:#d97706">déformation des pixels</span> | <span style="color:#d97706">styles de calque</span> | <span style="color:#d97706">contours vectoriels</span> | <span style="color:#d97706">déformation des pixels</span> | <span style="color:#d97706">vectoriel</span> |
 | Qualité quand la déformation est forte | <span style="color:#d97706">nette</span> | <span style="color:#d97706">nette</span> | <span style="color:#d97706">flou, trous possibles</span> | <span style="color:#d97706">sans objet</span> | <span style="color:#d97706">nette</span> | <span style="color:#d97706">trous possibles</span> | <span style="color:#d97706">nette</span> |
 | Contour, dégradé, ombre | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non (à faire à la main)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui, très complet (biseau, lueur…)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
+| Texte le long d'une forme SVG ou d'un tracé | <span style="color:#1a7f37">oui (12 formes, vos SVG, tracés)</span> | <span style="color:#d97706">tracé seulement</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">tracé seulement</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">quelques formes</span> |
+| Texte mis en page dans ou autour d'une forme | <span style="color:#1a7f37">oui (ajustement automatique)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> |
 | Badges (textes haut/bas, anneaux, motifs) | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> |
 | Biseau, finition métal | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> |
 | Rotation 3D en perspective | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">filtre séparé (perspective)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> |
@@ -155,21 +187,23 @@ Légende : <span style="color:#1a7f37">vert = oui</span> · <span style="color:#
 | Styles prêts à l'emploi et styles perso | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui (préréglages)</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">galerie</span> |
 | Vrai filtre NDE GIMP | <span style="color:#cf222e">non (voir plus haut)</span> | <span style="color:#cf222e">non</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#1a7f37">oui</span> | <span style="color:#cf222e">non</span> | <span style="color:#cf222e">non</span> | <span style="color:#d97706">sans objet</span> |
 
-**En résumé :** GEGL Effects est le meilleur complément pour les styles (biseau, lueurs), et peut s'appliquer par-dessus un calque Fontwork. Le texte le long d'un chemin reste utile pour suivre une courbe libre. Texte Fontwork est le seul à proposer des formes toutes faites et des badges de qualité vectorielle avec texte modifiable dans GIMP 3.
+**En résumé :** GEGL Effects est le meilleur complément pour les styles (biseau, lueurs), et peut s'appliquer par-dessus un calque Fontwork. Le texte le long d'un chemin reste utile pour suivre une courbe libre. Texte Fontwork est le seul à réunir, dans GIMP 3, formes toutes faites, texte sur, dans ou autour d'une forme et badges, en qualité vectorielle et avec un texte qui reste modifiable.
 
 ---
 
 ## English
 
-A Python plug-in for GIMP 3 that warps text (arc, circle, spiral, wave, funnel, etc.) and adds an outline, a gradient, a drop shadow and a 3D extrusion. Everything is set from a single window with a live preview. No built-in GIMP filter is used.
+A Python plug-in for GIMP 3 that lays out text in four ways: warped text (arc, circle, spiral, wave, funnel…), text following the outline of a shape, text laid out inside a shape (heart, star, speech bubble…) or around it and circular badges. Outline, gradient, metal, bevel, drop shadow and 3D extrusion can be added to the text. Everything is set from a single window with a live preview, and the text stays editable. No built-in GIMP filter is used.
 
 ### Installation
 
-The folder must be named `fontwork`, like the `fontwork.py` script. It contains `fontwork.py`, `fontwork_core.py`, `README.md` and `LICENSE`.
+The paths below are for GIMP 3.0. With a newer version (3.2…), the folder may have a different number: GIMP shows the exact path in **Edit ▸ Preferences ▸ Folders ▸ Plug-ins**.
+
+The folder must be named `fontwork`, like the `fontwork.py` script. It contains `fontwork.py`, `fontwork_core.py`, the `formes` folder (bundled SVG shapes), `README.md`, `LISEZMOI.md` and `LICENSE`.
 
 #### Windows
 
-1. Copy the `fontwork` folder into `%APPDATA%\GIMP\3.0\plug-ins\`. (or 3.2 verifie version)
+1. Copy the `fontwork` folder into `%APPDATA%\GIMP\3.0\plug-ins\` (or `3.2`, depending on your GIMP version).
 2. Restart GIMP.
 
 #### macOS
@@ -218,7 +252,7 @@ The plug-in is then in the **Layer ▸ Texte Fontwork…** menu.
 
 ### Usage
 
-The interface is in French. The plug-in has two modes, chosen at the top of the window: **Texte déformé** (Warped text) and **Badge / sceau** (Badge / seal). Each mode offers starting **templates** (*Modèle*); everything stays editable afterwards (texts, colours, sizes, radii…). The *Enregistrer…* (Save) button keeps your own settings as a personal template; they then appear in the list with a ★.
+The interface is in French. The plug-in has four modes, chosen at the top of the window: **Texte déformé** (Warped text), **Texte sur chemin** (Text on path), **Texte dans ou hors d'une forme** (Text inside or around a shape) and **Badge / sceau** (Badge / seal). Each mode offers starting **templates** (*Modèle*); everything stays editable afterwards (texts, colours, sizes, radii…). The *Enregistrer…* (Save) button keeps your own settings as a personal template; they then appear in the list with a ★.
 
 #### Warped text mode
 
@@ -229,6 +263,34 @@ The interface is in French. The plug-in has two modes, chosen at the top of the 
 - **Biseau** (Bevel): raised or engraved bevel on the fill, with depth, softness, light direction, highlight and shade.
 - **Ombre** (Shadow): offset, blur, colour and opacity.
 - **3D**: extrusion with depth, direction and colour, automatically darker towards the back; 3D rotation (tilt, turn) with adjustable perspective.
+
+#### Text on path mode
+
+A sentence that follows the outline of a shape: star, heart, arrow, house, flower, spiral, cross, circle, oval, wave, arch, speech bubble… The Texte, Couleurs, Biseau, Ombre and 3D tabs are the same as in warped text mode (font, size, spacing, width, gradient, metal, outline…). The **Chemin** (Path) tab replaces the Forme tab.
+
+- **Templates**: *Étoile dorée* (golden star), *Cœur tendre* (heart), *Flèche* (arrow), *Maison* (house), *Fleur* (flower), *Spirale* (spiral), *Croix étoilée* (four-point star), *Cercle continu* (endless circle), *Vague* (wave). The letter styles of text mode are also offered ("Lettres : …"): they change the look without changing the shape.
+- **Chemin suivi** (Path followed): an SVG shape from the library, or the **path selected in the image** (drawn with the Paths tool); in that case the text is placed exactly on the path.
+- **Your own shapes**: the *Ajouter un SVG…* (Add an SVG) button copies the file into your library (`fontwork-formes` in the GIMP profile folder, path shown in the tab). You can also drop SVG files there directly. Supported: paths (`path`, including curves and arcs), polygons, polylines, rectangles, circles, ellipses, lines and transforms. Text and embedded images in an SVG are ignored.
+- **Forme** (Shape): size, rotation, and which outline to follow when the SVG has several (0 = the longest).
+- **Texte sur le chemin** (Text on the path): position along the path, side (above / centred / below, i.e. outside or inside a closed shape), gap, reverse direction, *Remplir le chemin* (spread the text over x % of the length), *Répéter le texte tout autour* (repeat all the way round) with a separator (•, ♥, ✿…), rigid or bent letters.
+- **Dessiner la forme** (Draw the shape): fill, stroke and width, or an invisible shape to keep only the text.
+
+Tip: on inward corners (the dip of the heart, flower petals) letters may touch; increase the gap or spacing, or untick *Lettres rigides*.
+
+#### Text inside or around a shape mode
+
+The text is laid out **inside** a shape (each line takes the width available at its height, like a paragraph that follows the outline of a heart) or **outside** it: the text then fills a frame and flows around the shape, like magazine text wrapping around a picture. The shapes are the same as for text on path (library, your SVGs, or a closed path in the image). The Texte, Couleurs, Biseau, Ombre and 3D tabs are still available; the **Forme SVG** tab holds the shape and the layout settings.
+
+- **Templates**: inside, *Cœur* (heart), *Étoile* (star), *Maison* (house), *Bulle* (speech bubble), *Cercle* (circle), *Fleur* (flower), *Texte seul* (text only: the shape is hidden and the text alone draws the silhouette); outside, *Autour d'un cœur* (around a heart) and *Autour d'une étoile* (around a star). The letter styles ("Lettres : …") are also offered.
+- **Placer le texte** (Place the text): inside the shape, or outside it. Outside, **Largeur du cadre** and **Hauteur du cadre** (frame width and height, in % of the shape size) set the text area around the shape; the shape sits in the centre of the frame.
+- **Ajuster la taille pour remplir la forme** (Fit the size to fill the shape): the text size is computed to fill the available space as well as possible; the resulting size is shown under the preview. When unticked, the size set in the Texte tab is used, and a warning shows how many words do not fit.
+- **Alignement** (Alignment): left, centred, right or justified. **Position verticale** (Vertical position): top or centred.
+- **Marge intérieure** (Margin): distance between the text and the edge of the shape.
+- **Zones utilisées sur chaque ligne** (Areas used on each line): *toutes* (all: the text goes on both sides of the shape, or into both lobes at the top of a heart), *la plus large* (the widest), *à gauche seulement* (left only) or *à droite seulement* (right only). Outside, *left only* gives a column of text wrapping the left side of the shape.
+- **Retours à la ligne** (Line breaks): *texte continu* (continuous text, the default: a single line break becomes a space and only an empty line starts a new paragraph; best for filling the shape) or *respecter chaque retour à la ligne* (keep every line break: one verse per line, for poetry). Line spacing is set in the Texte tab.
+- **Justifié** (Justified): the space added between two words is limited to avoid large gaps; a line that is too short stays left-aligned, like the last line of a paragraph.
+
+Tip: narrow shapes (star arms, the tip of a heart) give smaller text inside; outside, a frame that is too narrow leaves empty lines level with the widest part of the shape: widen the frame or reduce the margin.
 
 #### Badge / seal mode
 
@@ -247,7 +309,7 @@ The badge is centred on the image, or on the selection if there is one: make a s
 #### Common options
 
 - **Aperçu en direct sur l'image** (Live preview on the image): the layer updates on the canvas while you adjust. These tests do not go into the undo history.
-- **Créer aussi un tracé** (Also create a path): also creates a vector path of the warped text, useful for selections or custom strokes.
+- **Créer aussi un tracé** (Also create a path): also creates a vector path of the text, useful for selections or custom strokes.
 - **Fusionner avec le calque du dessous** (Merge with the layer below): unchecked by default. When checked, the text is merged into the layer below and can no longer be edited by the plug-in.
 
 The text is placed at the centre of the image, or at the centre of the selection if there is one.
@@ -256,7 +318,7 @@ The text is placed at the centre of the image, or at the centre of the selection
 
 The **Réinitialiser** (Reset) button, next to the template list, restores every setting of the current mode to its original value. Two options: *Garder mes textes* (Keep my texts) and *Supprimer aussi mes modèles personnels (★)* (Also delete my personal templates). The reset settings only apply to the layer after **Valider** (OK).
 
-Manual reset, with GIMP closed: delete `fontwork-last.json` (last used settings) and, if you wish, `fontwork-styles.json` (your ★ templates) in the GIMP profile folder (`%APPDATA%\GIMP\3.0\` on Windows, `~/.config/GIMP/3.0/` on Linux).
+Manual reset, with GIMP closed: delete `fontwork-last.json` (last used settings) and, if you wish, `fontwork-styles.json` (your ★ templates) in the GIMP profile folder (`%APPDATA%\GIMP\3.0\` on Windows, `~/.config/GIMP/3.0/` on Linux; the number may be `3.2` depending on your version).
 
 ### Editing existing text (non-destructive editing)
 
@@ -281,7 +343,7 @@ The plug-in is not itself an NDE filter: GIMP 3 reserves that mechanism for GEGL
 - Text outlines are produced by GIMP's own text engine: every font GIMP knows is available, including fonts in GIMP's font folders.
 - The plug-in works on RGB and greyscale images. Convert an indexed image first: **Image ▸ Mode ▸ RGB**.
 - Funnel and pyramid look best with text on 2 or 3 lines.
-- If an error occurs, the details are written to `fontwork-erreurs.log` in the GIMP profile folder (`%APPDATA%\GIMP\3.0\` on Windows, `~/.config/GIMP/3.0/` on Linux). Attach it when reporting a problem.
+- If an error occurs, the details are written to `fontwork-erreurs.log` in the GIMP profile folder (`%APPDATA%\GIMP\3.0\` on Windows, `~/.config/GIMP/3.0/` on Linux; the number may be `3.2` depending on your version). Attach it when reporting a problem.
 
 ### Similar plug-ins and tools
 
@@ -296,6 +358,8 @@ Key: <span style="color:#1a7f37">green = yes</span> · <span style="color:#cf222
 | Method | <span style="color:#d97706">warps vector outlines</span> | <span style="color:#d97706">vector outlines</span> | <span style="color:#d97706">warps pixels</span> | <span style="color:#d97706">layer styles</span> | <span style="color:#d97706">vector outlines</span> | <span style="color:#d97706">warps pixels</span> | <span style="color:#d97706">vector</span> |
 | Quality under strong warping | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">blurry, possible holes</span> | <span style="color:#d97706">n/a</span> | <span style="color:#d97706">sharp</span> | <span style="color:#d97706">possible holes</span> | <span style="color:#d97706">sharp</span> |
 | Outline, gradient, shadow | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no (manual)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes, very complete (bevel, glow…)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
+| Text along an SVG shape or a path | <span style="color:#1a7f37">yes (12 shapes, your SVGs, paths)</span> | <span style="color:#d97706">path only</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">path only</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">a few shapes</span> |
+| Text laid out inside or around a shape | <span style="color:#1a7f37">yes (automatic fit)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> |
 | Badges (top/bottom texts, rings, symbols) | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> |
 | Bevel, metal finish | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> |
 | 3D rotation with perspective | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">separate filter (perspective)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> |
@@ -306,7 +370,7 @@ Key: <span style="color:#1a7f37">green = yes</span> · <span style="color:#cf222
 | Ready-made and custom styles | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes (presets)</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">gallery</span> |
 | True GIMP NDE filter | <span style="color:#cf222e">no (see above)</span> | <span style="color:#cf222e">no</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#1a7f37">yes</span> | <span style="color:#cf222e">no</span> | <span style="color:#cf222e">no</span> | <span style="color:#d97706">n/a</span> |
 
-**In short:** GEGL Effects is the best companion for styling (bevel, glows) and can be applied on top of a Fontwork layer. Text along Path remains useful for following a free-form curve. Texte Fontwork is the only one offering ready-made vector-quality shapes and badges with editable text in GIMP 3.
+**In short:** GEGL Effects is the best companion for styling (bevel, glows) and can be applied on top of a Fontwork layer. Text along Path remains useful for following a free-form curve. Texte Fontwork is the only one in GIMP 3 to combine ready-made shapes, text on, inside or around a shape, and badges, in vector quality and with text that stays editable.
 
 ---
 

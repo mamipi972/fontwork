@@ -27,6 +27,7 @@ import datetime
 import traceback
 import json
 import os
+import shutil
 import sys
 
 import gi
@@ -265,6 +266,55 @@ def save_zone_channel(image, circle, name):
     return ch
 
 
+def anchor_for(p, bbox, anchor):
+    """Avec un tracé de l'image, le texte se place exactement sur ce tracé."""
+    if p.get("mode") in ("chemin", "interieur") and p.get("path_src") == "image":
+        return (bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0
+    return anchor
+
+
+def image_path_polylines(image):
+    """Tracé sélectionné (sinon le premier) de l'image -> [(points, fermé), ...]."""
+    try:
+        paths = list(image.get_selected_paths() or [])
+    except Exception:
+        paths = []
+    if not paths:
+        paths = list(image.get_paths() or [])[:1]
+    if not paths:
+        return []
+    path = paths[0]
+    out = []
+    for sid in path.get_strokes():
+        r = path.stroke_get_points(sid)
+        pts, closed = list(r[1]), bool(r[2])
+        n = len(pts) // 6
+        if n < 1:
+            continue
+        P = [pts[6 * i:6 * i + 6] for i in range(n)]
+        poly = [(P[0][2], P[0][3])]
+        for i in range(n if closed else n - 1):
+            a, b = P[i], P[(i + 1) % n]
+            x0, y0, x1, y1, x2, y2, x3, y3 = a[2], a[3], a[4], a[5], b[0], b[1], b[2], b[3]
+            for k in range(1, 17):
+                t = k / 16.0
+                mt = 1 - t
+                poly.append((mt ** 3 * x0 + 3 * mt * mt * t * x1 + 3 * mt * t * t * x2 + t ** 3 * x3,
+                             mt ** 3 * y0 + 3 * mt * mt * t * y1 + 3 * mt * t * t * y2 + t ** 3 * y3))
+        if len(poly) > 1:
+            out.append((poly, closed))
+    return out
+
+
+def user_shape_dir():
+    d = _cfg_path("fontwork-formes")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
+    return d
+
+
 def add_path(image, polys, dx, dy, name):
     path = Gimp.Path.new(image, name)
     image.insert_path(path, None, 0)
@@ -338,6 +388,11 @@ class FontworkDialog:
                     pp = h.get("params", {})
                     if pp.get("mode") == "badge":
                         txt, kind = pp.get("b_top_text", ""), "badge"
+                    elif pp.get("mode") in ("chemin", "interieur"):
+                        ref = pp.get("path_file", "")
+                        txt = pp.get("text", "")
+                        kind = "chemin : " + (fw.BUILTIN_NAMES.get(ref.split(":")[-1])
+                                              or os.path.splitext(ref.split(":")[-1])[0])
                     else:
                         txt, kind = pp.get("text", ""), shapes.get(pp.get("shape"), "")
                     txt = (txt.strip().splitlines() or [""])[0][:24]
@@ -350,11 +405,15 @@ class FontworkDialog:
         mbox = Gtk.Box(spacing=12)
         mbox.pack_start(Gtk.Label(label="Mode :"), False, False, 0)
         self.rb_text = Gtk.RadioButton.new_with_label_from_widget(None, "Texte déformé")
+        self.rb_path = Gtk.RadioButton.new_with_label_from_widget(self.rb_text, "Texte sur chemin")
+        self.rb_inside = Gtk.RadioButton.new_with_label_from_widget(self.rb_text, "Texte dans ou hors d'une forme")
         self.rb_badge = Gtk.RadioButton.new_with_label_from_widget(self.rb_text, "Badge / sceau")
-        (self.rb_badge if self.p["mode"] == "badge" else self.rb_text).set_active(True)
-        self.rb_text.connect("toggled", self._on_mode)
-        mbox.pack_start(self.rb_text, False, False, 0)
-        mbox.pack_start(self.rb_badge, False, False, 0)
+        self.mode_radios = {"texte": self.rb_text, "chemin": self.rb_path,
+                            "interieur": self.rb_inside, "badge": self.rb_badge}
+        self.mode_radios[self.p["mode"]].set_active(True)
+        for rb in self.mode_radios.values():
+            rb.connect("toggled", self._on_mode)
+            mbox.pack_start(rb, False, False, 0)
         left.pack_start(mbox, False, False, 0)
 
         sbox = Gtk.Box(spacing=6)
@@ -402,8 +461,12 @@ class FontworkDialog:
         box.pack_start(self.stack, False, False, 0)
 
         nb = Gtk.Notebook(scrollable=True)
+        self.nb_text = nb
         nb.append_page(self._page(self._page_text()), Gtk.Label(label="Texte"))
-        nb.append_page(self._page(self._page_shape()), Gtk.Label(label="Forme"))
+        self.pg_shape = self._page(self._page_shape())
+        nb.append_page(self.pg_shape, Gtk.Label(label="Forme"))
+        self.pg_path = self._page(self._page_path())
+        nb.append_page(self.pg_path, Gtk.Label(label="Chemin"))
         nb.append_page(self._page(self._page_colors()), Gtk.Label(label="Couleurs"))
         nb.append_page(self._page(self._page_bevel("bevel", "bevel_depth", "bevel_soft",
                                                    "bevel_angle", "bevel_hi", "bevel_sh")),
@@ -422,8 +485,7 @@ class FontworkDialog:
         self._fill_styles()
         self._update_sensitivity()
         self.dlg.show_all()
-        self.stack.set_visible_child_name(self.p["mode"])
-        self.keep_texts.set_visible(self.p["mode"] == "badge")
+        self._show_mode()
 
     # ------------------------------------------------------ constructeurs
     def _grid(self):
@@ -445,6 +507,7 @@ class FontworkDialog:
         lab.set_margin_top(6 if g.row else 0)
         g.attach(lab, 0, g.row, 2, 1)
         g.row += 1
+        return lab
 
     def _row(self, g, label, widget, key=None):
         lab = Gtk.Label(label=label, xalign=0)
@@ -559,7 +622,12 @@ class FontworkDialog:
             fbx.add(child)
             self.shape_children[key] = child
         fbx.select_child(self.shape_children[self.p["shape"]])
-        fbx.connect("selected-children-changed", self._on_shape)
+        # Seul un clic (ou Entrée) choisit une forme ; la sélection automatique
+        # que GTK fait quand la grille reçoit le focus est annulée.
+        fbx.set_activate_on_single_click(True)
+        fbx.connect("child-activated", self._on_shape)
+        fbx.connect("selected-children-changed", self._keep_selection,
+                    lambda: self.shape_children.get(self.p["shape"]))
         self.shape_box = fbx
         g.attach(fbx, 0, g.row, 2, 1)
         g.row += 1
@@ -619,6 +687,171 @@ class FontworkDialog:
         self._slider(g, "Pivoter (axe vertical, °)", "rot_y", -80, 80, 1)
         self._slider(g, "Distance (perspective)", "persp", 0.8, 10, 0.1, 1)
         return g
+
+    # ------------------------------------------------- page chemin
+    def _page_path(self):
+        g = self._grid()
+        self._combo(g, "Chemin suivi", "path_src",
+                    [("svg", "Forme SVG (bibliothèque)"),
+                     ("image", "Tracé sélectionné dans l'image")])
+        self.path_box = Gtk.FlowBox(max_children_per_line=4, min_children_per_line=4,
+                                    selection_mode=Gtk.SelectionMode.SINGLE, homogeneous=True,
+                                    row_spacing=4, column_spacing=4)
+        self.path_box.set_activate_on_single_click(True)
+        self.path_box.connect("child-activated", self._on_path_shape)
+        self.path_box.connect("selected-children-changed", self._keep_selection,
+                              lambda: self.path_children.get(self.p["path_file"]))
+        g.attach(self.path_box, 0, g.row, 2, 1)
+        self.rows["path_box"] = (self.path_box,)
+        g.row += 1
+        hb = Gtk.Box(spacing=6)
+        add = Gtk.Button(label="Ajouter un SVG…")
+        add.set_tooltip_text("Copie un fichier SVG dans votre bibliothèque de formes")
+        add.connect("clicked", self._on_add_svg)
+        hb.pack_start(add, False, False, 0)
+        g.attach(hb, 0, g.row, 2, 1)
+        self.rows["path_add"] = (add,)
+        g.row += 1
+        hint = Gtk.Label(xalign=0, wrap=True, max_width_chars=48, selectable=True)
+        hint.set_markup("<small>Vos formes : <b>%s</b>\nVous pouvez aussi y déposer des fichiers "
+                        "SVG directement.</small>" % GLib.markup_escape_text(user_shape_dir()))
+        g.attach(hint, 0, g.row, 2, 1)
+        g.row += 1
+        self._fill_path_shapes()
+        self._section(g, "Forme")
+        self._slider(g, "Taille de la forme (px)", "path_size", 50, 5000, 10)
+        self._slider(g, "Rotation de la forme (°)", "path_rot", -180, 180, 1)
+        self._slider(g, "Contour suivi (0 = le plus long)", "path_sub", 0, 50, 1)
+        self.sec_inside = self._section(g, "Mise en page du texte")
+        self._combo(g, "Placer le texte", "in_where", fw.INSIDE_WHERE)
+        self._slider(g, "Largeur du cadre (% de la forme)", "in_frame_w", 100, 600, 1)
+        self._slider(g, "Hauteur du cadre (% de la forme)", "in_frame_h", 100, 600, 1)
+        self._check(g, "Ajuster la taille pour remplir la forme", "in_auto")
+        self._combo(g, "Alignement", "in_align", fw.INSIDE_ALIGNS)
+        self._combo(g, "Position verticale", "in_valign",
+                    [("haut", "En haut"), ("centre", "Centrée")])
+        self._slider(g, "Marge intérieure (px)", "in_margin", 0, 300, 0.5, 1)
+        self._combo(g, "Zones utilisées sur chaque ligne", "in_zones", fw.INSIDE_ZONES)
+        self._combo(g, "Retours à la ligne", "in_breaks", fw.INSIDE_BREAKS)
+        self.sec_path_text = self._section(g, "Texte sur le chemin")
+        self._slider(g, "Position (%)", "path_pos", 0, 100, 0.5, 1)
+        self._combo(g, "Côté", "path_side", fw.PATH_SIDES)
+        self._slider(g, "Écart avec le chemin (px)", "path_offset", -100, 200, 0.5, 1)
+        self._check(g, "Inverser le sens (texte de l'autre côté)", "path_reverse")
+        self._slider(g, "Remplir le chemin (%, 0 = naturel)", "path_fit", 0, 100, 1)
+        self._check(g, "Répéter le texte tout autour (formes fermées)", "path_repeat")
+        self._entry(g, "Séparateur", "path_sep")
+        self._check(g, "Lettres rigides (décocher : lettres courbées)", "path_rigid")
+        self._section(g, "Dessiner la forme")
+        self._check(g, "Afficher la forme sous le texte", "path_show")
+        self._color(g, "Fond", "path_fill")
+        self._color(g, "Trait", "path_stroke")
+        self._slider(g, "Épaisseur du trait", "path_sw", 0, 60, 0.5, 1)
+        return g
+
+    def _shape_thumb(self, ref):
+        try:
+            subs = fw.load_shape(ref)
+            bb = fw._bbox([sp[0] for sp in subs])
+            k = min(64.0 / max(bb[2] - bb[0], 1e-6), 38.0 / max(bb[3] - bb[1], 1e-6))
+            w = int((bb[2] - bb[0]) * k) + 6
+            h = int((bb[3] - bb[1]) * k) + 6
+            surf = cairo.ImageSurface(cairo.FORMAT_ARGB32, w, h)
+            c = cairo.Context(surf)
+            c.translate(3, 3)
+            c.scale(k, k)
+            c.translate(-bb[0], -bb[1])
+            for pts, closed in subs:
+                c.move_to(*pts[0])
+                for q in pts[1:]:
+                    c.line_to(*q)
+                if closed:
+                    c.close_path()
+            c.set_source_rgba(0, 0, 0, 0.35)
+            c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+            c.fill_preserve()
+            c.identity_matrix()
+            c.set_line_width(1.5)
+            c.set_source_rgba(0, 0, 0, 1)
+            c.stroke()
+            return surf
+        except Exception:
+            return None
+
+    def _fill_path_shapes(self):
+        for child in self.path_box.get_children():
+            self.path_box.remove(child)
+        self.path_children = {}
+        for ref, label in fw.list_shapes():
+            vb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+            da = Gtk.DrawingArea()
+            da.set_size_request(76, 44)
+            da.connect("draw", self._draw_thumb, self._shape_thumb(ref))
+            vb.pack_start(da, False, False, 0)
+            lab = Gtk.Label(label=label, ellipsize=3, max_width_chars=10)
+            vb.pack_start(lab, False, False, 0)
+            child = Gtk.FlowBoxChild()
+            child.add(vb)
+            child.shape_ref = ref
+            self.path_box.add(child)
+            self.path_children[ref] = child
+        self.path_box.show_all()
+        self._select_path_child()
+
+    def _select_path_child(self):
+        child = self.path_children.get(self.p["path_file"])
+        self.loading_path = True
+        if child is not None:
+            self.path_box.select_child(child)
+        else:
+            self.path_box.unselect_all()
+        self.loading_path = False
+
+    def _on_path_shape(self, box, child):
+        box.select_child(child)
+        self._set("path_file", child.shape_ref)
+
+    def _keep_selection(self, box, wanted):
+        """Remet en surbrillance la forme réellement choisie."""
+        child = wanted()
+        sel = box.get_selected_children()
+        if child is not None and (not sel or sel[0] is not child):
+            GLib.idle_add(self._reselect, box, child)
+
+    @staticmethod
+    def _reselect(box, child):
+        box.select_child(child)
+        return False
+
+    def _on_add_svg(self, _btn):
+        d = Gtk.FileChooserDialog(title="Ajouter une forme SVG", transient_for=self.dlg,
+                                  action=Gtk.FileChooserAction.OPEN)
+        d.add_button("_Annuler", Gtk.ResponseType.CANCEL)
+        d.add_button("_Ajouter", Gtk.ResponseType.OK)
+        f = Gtk.FileFilter()
+        f.set_name("Images SVG")
+        f.add_pattern("*.svg")
+        f.add_pattern("*.SVG")
+        d.add_filter(f)
+        if d.run() == Gtk.ResponseType.OK and d.get_filename():
+            src = d.get_filename()
+            try:
+                if not fw.parse_svg(src):
+                    raise ValueError("aucun contour lisible (texte ou image intégrée ?)")
+                dest_dir = user_shape_dir()
+                base, ext = os.path.splitext(os.path.basename(src))
+                name, k = base + ".svg", 2
+                while os.path.exists(os.path.join(dest_dir, name)):
+                    name, k = "%s-%d.svg" % (base, k), k + 1
+                shutil.copyfile(src, os.path.join(dest_dir, name))
+                self.p["path_file"] = "user:" + name
+                self.p["path_src"] = "svg"
+                self._fill_path_shapes()
+                self._sync_widgets()
+                self._changed()
+            except Exception as e:
+                self.status.set_text("SVG refusé : %s" % e)
+        d.destroy()
 
     # ------------------------------------------------- pages mode badge
     def _page_b_rings(self):
@@ -718,6 +951,15 @@ class FontworkDialog:
         if self.p["mode"] == "badge":
             for i, (name, _) in enumerate(fw.BADGE_PRESETS):
                 self.style_combo.append("b%d" % i, name)
+        elif self.p["mode"] in ("chemin", "interieur"):
+            if self.p["mode"] == "chemin":
+                for i, (name, _) in enumerate(fw.PATH_PRESETS):
+                    self.style_combo.append("c%d" % i, name)
+            else:
+                for i, (name, _) in enumerate(fw.INSIDE_PRESETS):
+                    self.style_combo.append("i%d" % i, name)
+            for i, (name, _) in enumerate(fw.PRESETS):
+                self.style_combo.append("p%d" % i, "Lettres : " + name)
         else:
             for i, (name, _) in enumerate(fw.PRESETS):
                 self.style_combo.append("p%d" % i, name)
@@ -735,10 +977,18 @@ class FontworkDialog:
             style = load_json(STYLES_FILE, {}).get(sid[2:], {})
         elif sid.startswith("b"):
             style = dict(fw.BADGE_PRESETS[int(sid[1:])][1], mode="badge")
+        elif sid.startswith("c"):
+            style = dict(fw.PATH_PRESETS[int(sid[1:])][1], mode="chemin")
+        elif sid.startswith("i"):
+            style = dict(fw.INSIDE_PRESETS[int(sid[1:])][1], mode="interieur")
         else:
             style = fw.PRESETS[int(sid[1:])][1]
         if style.get("mode") == "badge":
             self.p = fw.apply_badge_preset(self.p, style, self.keep_texts.get_active())
+        elif style.get("mode") == "chemin":
+            self.p = fw.apply_path_preset(self.p, style)
+        elif style.get("mode") == "interieur":
+            self.p = fw.apply_inside_preset(self.p, style)
         else:
             self.p = fw.apply_preset(self.p, style)
         self._sync_widgets()
@@ -755,7 +1005,9 @@ class FontworkDialog:
         d.show_all()
         if d.run() == Gtk.ResponseType.OK and e.get_text().strip():
             styles = load_json(STYLES_FILE, {})
-            keys = fw.BADGE_KEYS if self.p["mode"] == "badge" else fw.PRESET_KEYS
+            keys = {"badge": fw.BADGE_KEYS, "chemin": fw.PRESET_KEYS | fw.PATH_KEYS,
+                    "interieur": fw.PRESET_KEYS | fw.PATH_KEYS | fw.INSIDE_KEYS}.get(
+                self.p["mode"], fw.PRESET_KEYS)
             st = {k: self.p[k] for k in keys}
             st["mode"] = self.p["mode"]
             styles[e.get_text().strip()] = st
@@ -811,15 +1063,43 @@ class FontworkDialog:
         self._sync_widgets()
         self._changed()
 
-    def _on_mode(self, _btn):
-        mode = "badge" if self.rb_badge.get_active() else "texte"
+    def _on_mode(self, btn):
+        if not btn.get_active() or self.loading:
+            return
+        mode = [m for m, rb in self.mode_radios.items() if rb is btn][0]
         if mode == self.p["mode"]:
             return
         self.p["mode"] = mode
-        self.stack.set_visible_child_name(mode)
-        self.keep_texts.set_visible(mode == "badge")
+        self._show_mode()
+        if mode in ("chemin", "interieur"):
+            self.nb_text.set_current_page(self.nb_text.page_num(self.pg_path))
+        elif mode == "texte":
+            self.nb_text.set_current_page(self.nb_text.page_num(self.pg_shape))
         self._fill_styles()
+        self._update_sensitivity()
         self._changed()
+
+    PATH_ONLY = ("path_sub", "path_pos", "path_side", "path_offset", "path_reverse",
+                 "path_fit", "path_repeat", "path_sep", "path_rigid")
+    INSIDE_ONLY = ("in_where", "in_frame_w", "in_frame_h", "in_auto", "in_align", "in_valign",
+                   "in_margin", "in_zones", "in_breaks")
+
+    def _show_mode(self):
+        mode = self.p["mode"]
+        self.stack.set_visible_child_name("badge" if mode == "badge" else "texte")
+        self.pg_shape.set_visible(mode == "texte")
+        self.pg_path.set_visible(mode in ("chemin", "interieur"))
+        self.nb_text.set_tab_label_text(self.pg_path, "Forme SVG" if mode == "interieur" else "Chemin")
+        self.keep_texts.set_visible(mode == "badge")
+        inside = mode == "interieur"
+        self.sec_path_text.set_visible(not inside)
+        self.sec_inside.set_visible(inside)
+        for k in self.PATH_ONLY:
+            for w in self.rows.get(k, ()):
+                w.set_visible(not inside)
+        for k in self.INSIDE_ONLY:
+            for w in self.rows.get(k, ()):
+                w.set_visible(inside)
 
     def _sync_widgets(self):
         self.loading = True
@@ -843,9 +1123,9 @@ class FontworkDialog:
             elif kind == "check":
                 w.set_active(bool(v))
         self.shape_box.select_child(self.shape_children[self.p["shape"]])
-        (self.rb_badge if self.p["mode"] == "badge" else self.rb_text).set_active(True)
-        self.stack.set_visible_child_name(self.p["mode"])
-        self.keep_texts.set_visible(self.p["mode"] == "badge")
+        self._select_path_child()
+        self.mode_radios[self.p["mode"]].set_active(True)
+        self._show_mode()
         self.loading = False
         self._update_sensitivity()
 
@@ -861,10 +1141,9 @@ class FontworkDialog:
         if font is not None:
             self._set(key, font.get_name())
 
-    def _on_shape(self, box):
-        sel = box.get_selected_children()
-        if sel:
-            self._set("shape", sel[0].shape_key)
+    def _on_shape(self, box, child):
+        box.select_child(child)
+        self._set("shape", child.shape_key)
 
     def _sens(self, key, on):
         for w in self.rows.get(key, ()):
@@ -886,8 +1165,23 @@ class FontworkDialog:
             self._sens(key, bool(p["shadow"]))
         for key in ("bevel_depth", "bevel_soft", "bevel_angle", "bevel_hi", "bevel_sh"):
             self._sens(key, p["bevel"] != "none")
-        self._sens("line_gap", bool(p["lines_sep"]))
-        self._sens("persp", bool(p["rot_x"] or p["rot_y"]))
+        chemin = p["mode"] in ("chemin", "interieur")
+        self._sens("lines_sep", not chemin)
+        self._sens("line_gap", bool(p["lines_sep"]) and not chemin)
+        self._sens("line_spacing", not chemin)
+        self._sens("align", not chemin)
+        self._sens("rot_x", not chemin)
+        self._sens("rot_y", not chemin)
+        self._sens("persp", bool(p["rot_x"] or p["rot_y"]) and not chemin)
+        svg = p["path_src"] == "svg"
+        for k in ("path_box", "path_add", "path_size"):
+            self._sens(k, svg)
+        self._sens("path_sep", bool(p["path_repeat"]))
+        for k in ("in_frame_w", "in_frame_h"):
+            self._sens(k, p["in_where"] == "hors")
+        self._sens("path_fit", not p["path_repeat"])
+        for k in ("path_fill", "path_stroke", "path_sw"):
+            self._sens(k, bool(p["path_show"]))
         for i in range(1, 5):
             for k in ("r", "fill", "sw", "stroke"):
                 self._sens("b_r%d_%s" % (i, k), bool(p["b_r%d_on" % i]))
@@ -912,7 +1206,10 @@ class FontworkDialog:
 
     # ----------------------------------------------------------- rendu
     def prepare(self):
-        keys = sorted(fw.BADGE_KEYS) if self.p["mode"] == "badge" else fw.GEOMETRY_KEYS
+        keys = {"badge": sorted(fw.BADGE_KEYS),
+                "chemin": list(fw.GEOMETRY_KEYS) + sorted(fw.PATH_KEYS),
+                "interieur": list(fw.GEOMETRY_KEYS) + sorted(fw.PATH_KEYS | fw.INSIDE_KEYS)}.get(
+            self.p["mode"], fw.GEOMETRY_KEYS)
         key = json.dumps([self.p["mode"]] + [self.p[k] for k in keys])
         if key != self.geo_key:
             self.geo = fw.prepare(self.p)
@@ -959,16 +1256,23 @@ class FontworkDialog:
             cr.set_source_surface(surf, (aw - surf.get_width()) // 2,
                                   (ah - surf.get_height()) // 2)
             cr.paint()
-            self.status.set_text("Taille finale : %d × %d px   (aperçu à %d %%)"
-                                 % (x1 - x0, y1 - y0, round(s * 100)))
+            msg = "Taille finale : %d × %d px   (aperçu à %d %%)" % (x1 - x0, y1 - y0,
+                                                                    round(s * 100))
+            if prep["mode"] == "interieur":
+                g = prep["g"]
+                msg += "   —   texte : %d px" % round(g.get("size", self.p["size"]))
+                if g.get("missing"):
+                    msg = ("⚠ %d mot(s) ne tiennent pas dans la forme : réduisez la taille, "
+                           "la marge, ou cochez l'ajustement automatique." % g["missing"])
+            self.status.set_text(msg)
         except Exception as e:
             self.status.set_text("Erreur : %s" % e)
 
     # ------------------------------------------------- aperçu sur l'image
     def placement(self, origin, bbox):
         cx, cy = (bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0
-        return (int(round(self.anchor[0] + origin[0] - cx)),
-                int(round(self.anchor[1] + origin[1] - cy)))
+        ax, ay = anchor_for(self.p, bbox, self.anchor)
+        return (int(round(ax + origin[0] - cx)), int(round(ay + origin[1] - cy)))
 
     def _on_canvas_toggle(self, btn):
         if btn.get_active():
@@ -1051,8 +1355,8 @@ class FontworkPlugin(Gimp.PlugIn):
         proc.add_menu_path("<Image>/Layer/")
         proc.set_documentation(
             "Texte déformé façon Fontwork",
-            "Crée un calque de texte déformé (arc, cercle, spirale, vague, entonnoir…) "
-            "ou un badge circulaire (textes en cercle, anneaux, motifs), avec contour, "
+            "Crée un calque de texte déformé (arc, cercle, spirale, vague, entonnoir…), "
+            "de texte qui suit ou remplit une forme SVG, ou un badge circulaire, avec contour, "
             "dégradé, métal, biseau, ombre, relief et rotation 3D. Relancer le greffon sur "
             "un calque Fontwork permet de modifier son texte et ses réglages.",
             name)
@@ -1089,6 +1393,9 @@ class FontworkPlugin(Gimp.PlugIn):
             except Exception:
                 pass
 
+        fw.SHAPE_DIRS["user"] = user_shape_dir()
+        fw.image_path_provider = lambda: image_path_polylines(image)
+
         make_path = merge = False
         history = list(params.get("_history", [])) if edit_layer is not None else []
         if run_mode == Gimp.RunMode.INTERACTIVE:
@@ -1117,8 +1424,9 @@ class FontworkPlugin(Gimp.PlugIn):
             surf, origin = fw.draw(prep, p, 1.0)
             polys, bbox = prep["polys"], prep["bbox"]
             cx, cy = (bbox[0] + bbox[2]) / 2.0, (bbox[1] + bbox[3]) / 2.0
-            x = int(round(anchor[0] + origin[0] - cx))
-            y = int(round(anchor[1] + origin[1] - cy))
+            ax, ay = anchor_for(p, bbox, anchor)
+            x = int(round(ax + origin[0] - cx))
+            y = int(round(ay + origin[1] - cy))
             label = p["b_top_text"] if p["mode"] == "badge" else p["text"]
             first = (label.strip().splitlines() or ["texte"])[0][:30]
 
