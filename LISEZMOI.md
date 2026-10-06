@@ -4,13 +4,15 @@ Greffon Python pour GIMP 3 qui met en forme du texte de quatre façons : texte d
 
 <img width="1017" height="722" alt="Fenêtre du greffon Texte Fontwork" src="https://github.com/user-attachments/assets/14fe8e66-1ae7-4477-a6e8-cf4799b7284c" />
 
+<img width="1140" alt="Les 23 modèles de badges" src="captures/badges.png" />
+
 *English version: see [README.md](README.md).*
 
 ## Installation
 
 Les chemins ci-dessous sont ceux de GIMP 3.0. Avec une version plus récente (3.2…), le dossier peut porter un autre numéro : le chemin exact est indiqué dans GIMP, menu **Édition ▸ Préférences ▸ Dossiers ▸ Greffons**.
 
-Le dossier doit s'appeler `fontwork`, comme le script `fontwork.py`. Il contient `fontwork.py`, `fontwork_core.py`, le dossier `formes` (formes SVG fournies), `README.md`, `LISEZMOI.md` et `LICENSE`.
+Le dossier doit s'appeler `fontwork`, comme le script `fontwork.py`. Il contient `fontwork.py`, `fontwork_core.py`, le dossier `formes` (formes SVG fournies), le dossier `captures` (images du README), `README.md`, `LISEZMOI.md` et `LICENSE`.
 
 ### Windows
 
@@ -65,6 +67,8 @@ Le greffon se trouve ensuite dans le menu **Calque ▸ Texte Fontwork…**
 
 Le greffon a quatre modes, choisis en haut de la fenêtre : **Texte déformé**, **Texte sur chemin**, **Texte dans ou hors d'une forme** et **Badge / sceau**. Chaque mode propose des **modèles** de départ ; tout reste ensuite modifiable (textes, couleurs, tailles, rayons…). Le bouton *Enregistrer…* garde vos propres réglages comme modèle personnel ; ils apparaissent ensuite dans la liste avec une ★.
 
+Le bouton **Galerie…** affiche tous les modèles du mode en cours sous forme de vignettes, calculées avec vos textes : un clic applique le modèle. Les vignettes sont gardées dans le dossier `fontwork-vignettes` du profil GIMP, ce qui rend les ouvertures suivantes immédiates ; ce dossier peut être supprimé sans risque.
+
 ### Mode Texte déformé
 
 - **Modèles** : 19 modèles, dont *Cercle orange*, *Bloc 3D*, *Double arche* et *Or estampé*.
@@ -107,11 +111,11 @@ Conseil : les formes étroites (branches d'étoile, pointe du cœur) donnent un 
 
 Pour les logos ronds, médailles, tampons et citations en cercle.
 
-- **Modèles** : *Club (deux anneaux)*, *Citation sur photo*, *Médaille d'or*, *Tampon encreur*, *Écusson bleu et or*. La case *Garder mes textes en changeant de modèle* permet d'essayer plusieurs modèles sans retaper ses textes.
-- **Anneaux** : diamètre et rotation du badge ; jusqu'à 4 anneaux, chacun avec rayon, couleur de fond (transparente possible) et trait (épaisseur, couleur).
+- **Modèles** : *Club (deux anneaux)*, *Citation sur photo*, *Médaille d'or*, *Tampon encreur*, *Écusson bleu et or*, *Sceau de cire rouge*, *Badge bleu institutionnel*, *Médaille d'or prestige*, *Vintage brasserie*, *Moderne & tech*, *Champion (humour)*, *Gravure blanche*, *Industriel cuivre*, *Bijouterie luxe*, *Éco vert & rouge*, *Institutionnel à ruban*, *Sport & performance*, *Tampon éco*, et cinq variantes humoristiques du Champion (*reine de la gaffe*, *mauvaise foi garantie*, *expert en cafouillage*, *sorcier de la caféine*, *grand maître du bazar*). La case *Garder mes textes en changeant de modèle* permet d'essayer plusieurs modèles sans retaper ses textes.
+- **Anneaux** : diamètre et rotation du badge ; forme du bord extérieur (lisse, festonné comme un sceau de cire, dentelé comme une capsule, cranté comme un engrenage, ébréché), avec nombre et profondeur ; jusqu'à 4 anneaux, chacun avec rayon, couleur de fond (transparente possible), trait (épaisseur, couleur) et choix d'appliquer ou non la teinte métal au fond (pour garder, par exemple, une bande bleue entre des anneaux dorés).
 - **Textes** : un texte en haut (lettres vers l'extérieur) et un texte en bas (lisible à l'endroit), chacun avec police, taille, couleur, rayon, contour et espacement. *Étaler sur* répartit le texte sur l'angle voulu (par exemple 335° pour un texte qui fait presque tout le tour). Un texte central sur plusieurs lignes, avec décalage vertical.
-- **Décors** : filets en arc qui relient les deux textes ; couronne de motifs répétés (★, •, ✦… nombre, rayon, taille, couleur, angle de départ, orientation) ; zone centrale circulaire pour placer une photo ou un logo (voir ci-dessous).
-- **Effets** : finition métal (or, argent, bronze) appliquée à tout le badge, biseau (sur les textes ou sur tout le badge) et ombre portée.
+- **Décors** : filets en arc qui relient les deux textes ; couronne de motifs répétés (★, •, ✦… nombre, rayon, taille, couleur, angle de départ, orientation) ; cordelette torsadée ; guillochage (hachures ondulées dans un anneau) ; couronne de lauriers ; couronne de perles, rivets ou diamants ; bandeau sous le texte central (ruban à pointes fourchues, courbé ou droit, ou plaque avec rivets) ; forme SVG au centre (étoile, bouclier coché, vos propres SVG…), placée automatiquement au-dessus du texte central s'il y en a un ; petite mention en bas (« GIMP-FONTWORK »…) ; zone centrale circulaire pour placer une photo ou un logo (voir ci-dessous).
+- **Effets** : finition métal (or, argent, bronze, cuivre), texture (métal brossé, cire, patine, rouille) avec son intensité, biseau (sur les textes ou sur tout le badge) et ombre portée. Les illustrations (personnage, animal, blason) ne sont pas dessinées par le greffon : placez votre image dans la zone centrale.
 
 Le badge est centré sur l'image, ou sur la sélection s'il y en a une : faites d'abord une sélection sur votre photo pour y placer le badge.
 

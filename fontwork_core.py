@@ -25,6 +25,7 @@ Indépendant de GIMP : n'utilise que pycairo + Pango (via PyGObject).
 """
 import math
 import os
+import random
 import re
 
 import cairo
@@ -114,6 +115,7 @@ METALS = {
     "or": [(0, "fff6c2"), (0.25, "e0b53a"), (0.5, "fff0a8"), (0.75, "b8860b"), (1, "f5d76e")],
     "argent": [(0, "ffffff"), (0.3, "b8bcc2"), (0.5, "f4f6f8"), (0.75, "8e939a"), (1, "e0e3e6")],
     "bronze": [(0, "f3c08a"), (0.3, "a4622b"), (0.5, "e6a468"), (0.75, "7a4518"), (1, "c98b50")],
+    "cuivre": [(0, "ffc9a8"), (0.3, "b5562a"), (0.5, "f0a27a"), (0.75, "7f3216"), (1, "d9825a")],
 }
 
 
@@ -680,9 +682,9 @@ def render_full(p, scale=1.0):
 # --------------------------------------------------------------------------
 # Mode badge / sceau : textes sur un cercle, anneaux, filets, motifs
 # --------------------------------------------------------------------------
-def _ring_defaults(i, on, r, fill, sw, stroke):
+def _ring_defaults(i, on, r, fill, sw, stroke, metal=True):
     return {"b_r%d_on" % i: on, "b_r%d_r" % i: r, "b_r%d_fill" % i: fill,
-            "b_r%d_sw" % i: sw, "b_r%d_stroke" % i: stroke}
+            "b_r%d_sw" % i: sw, "b_r%d_stroke" % i: stroke, "b_r%d_metal" % i: metal}
 
 
 WHITE, BLACK, NONE = [1.0, 1.0, 1.0, 1.0], [0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 0.0]
@@ -715,6 +717,38 @@ BADGE_DEFAULTS = {
     # sélection circulaire créée à la validation (pour une photo, un logo…)
     "b_sel_on": True, "b_sel_r": 62.0,
     "b_sel_mode": "canal",        # canal (enregistré, sans sélection active) / selection
+    # bord extérieur (anneau 1)
+    "b_edge": "lisse",            # lisse / feston / dents / crans / ebreche
+    "b_edge_n": 24, "b_edge_depth": 5.0,
+    # cordelette torsadée
+    "b_rope_on": False, "b_rope_r": 97.0, "b_rope_w": 14.0, "b_rope_col": [0.96, 0.9, 0.75, 1.0],
+    # guillochage
+    "b_guil_on": False, "b_guil_r1": 86.0, "b_guil_r2": 99.0, "b_guil_n": 10, "b_guil_waves": 36,
+    "b_guil_w": 0.8, "b_guil_col": [0.95, 0.88, 0.6, 1.0],
+    # couronne de lauriers
+    "b_laur_on": False, "b_laur_r": 108.0, "b_laur_size": 46.0, "b_laur_span": 150.0,
+    "b_laur_gap": 30.0, "b_laur_col": [0.95, 0.88, 0.6, 1.0],
+    # forme SVG au centre
+    "b_icon_on": False, "b_icon_file": "builtin:etoile.svg", "b_icon_size": 30.0,
+    "b_icon_dy": 0.0, "b_icon_col": WHITE, "b_icon_metal": True,
+    "b_icon_auto": True,          # forme au-dessus du texte central s'il y en a un
+    # petite mention en bas
+    "b_note_text": "", "b_note_font": "Sans-serif Bold", "b_note_size": 16.0, "b_note_r": 92.0,
+    "b_note_col": BLACK,
+    # bandeau sous le texte central
+    "b_ban_on": False, "b_ban_style": "ruban",   # ruban / plaque
+    "b_ban_w": 95.0,              # largeur (% du diamètre)
+    "b_ban_h": 170.0,             # hauteur (% de la hauteur du texte central)
+    "b_ban_curve": 12.0,          # courbure du ruban (px)
+    "b_ban_fill": [0.09, 0.2, 0.38, 1.0], "b_ban_stroke": [0.96, 0.9, 0.72, 1.0],
+    "b_ban_sw": 3.0, "b_ban_rivets": True, "b_ban_metal": False,
+    # couronne de perles / rivets / diamants
+    "b_pearl_on": False, "b_pearl_style": "perle",   # perle / rivet / diamant
+    "b_pearl_r": 95.0, "b_pearl_n": 36, "b_pearl_size": 12.0,
+    "b_pearl_col": [0.96, 0.9, 0.72, 1.0], "b_pearl_metal": True,
+    # texture
+    "b_tex": "aucune",            # aucune / brosse / cire / patine / rouille
+    "b_tex_amount": 0.5,
 }
 BADGE_DEFAULTS.update(_ring_defaults(1, True, 100.0, [0.12, 0.43, 0.23, 1.0], 6.0, WHITE))
 BADGE_DEFAULTS.update(_ring_defaults(2, True, 64.0, [0.83, 0.16, 0.13, 1.0], 5.0, WHITE))
@@ -740,7 +774,8 @@ def _fit_spacing(tp, r_mid, fit_deg):
     target = math.radians(min(359.0, fit_deg)) * r_mid
     n = max(1, len(tp["text"]) - 1)
     sp = (target - ink[2]) / n
-    return dict(tp, spacing=max(sp, -tp["size"] * 0.4))
+    # un texte court n'est pas étiré à l'excès : espacement plafonné
+    return dict(tp, spacing=min(max(sp, -tp["size"] * 0.4), tp["size"] * 0.45))
 
 
 def _circle_text(tp, r_mid, center_deg, bottom):
@@ -795,9 +830,64 @@ def badge_geometry(p):
 
     for i in range(1, 5):
         if p["b_r%d_on" % i]:
-            els.append({"kind": "ring", "r": R * p["b_r%d_r" % i] / 100.0,
-                        "fill": p["b_r%d_fill" % i], "sw": p["b_r%d_sw" % i],
-                        "stroke": p["b_r%d_stroke" % i]})
+            r = R * p["b_r%d_r" % i] / 100.0
+            edge = None
+            if i == 1 and p["b_edge"] in EDGE_KEYS and p["b_edge"] != "lisse":
+                edge = _edge_points(p["b_edge"], r, int(p["b_edge_n"]), p["b_edge_depth"], rot)
+            if p["b_r%d_fill" % i][3] > 0:
+                els.append({"kind": "ring_fill", "r": r, "fill": p["b_r%d_fill" % i],
+                            "edge": edge, "metal": bool(p["b_r%d_metal" % i])})
+            if p["b_r%d_sw" % i] > 0 and p["b_r%d_stroke" % i][3] > 0:
+                els.append({"kind": "ring_stroke", "r": r, "sw": p["b_r%d_sw" % i],
+                            "stroke": p["b_r%d_stroke" % i], "edge": edge})
+    if p["b_guil_on"]:
+        els.append({"kind": "guil", "r1": R * p["b_guil_r1"] / 100.0,
+                    "r2": R * p["b_guil_r2"] / 100.0, "n": int(p["b_guil_n"]),
+                    "waves": int(p["b_guil_waves"]), "w": p["b_guil_w"], "col": p["b_guil_col"],
+                    "rot": rot})
+    if p["b_rope_on"]:
+        els.append({"kind": "rope", "r": R * p["b_rope_r"] / 100.0, "w": p["b_rope_w"],
+                    "col": p["b_rope_col"], "rot": rot})
+    if p["b_laur_on"]:
+        els.append({"kind": "laurel", "r": R * p["b_laur_r"] / 100.0, "size": p["b_laur_size"],
+                    "span": p["b_laur_span"], "gap": p["b_laur_gap"], "col": p["b_laur_col"],
+                    "rot": rot})
+    icon_shift, icon_k, text_shift = 0.0, 1.0, 0.0
+    ctr_polys = []
+    if p["b_ctr_text"].strip():
+        tp = _text_params(p["b_ctr_text"], p["b_ctr_font"], p["b_ctr_size"],
+                          0.0, p["b_ctr_ls"])
+        ctr_polys = _centered_text(tp)
+    if p["b_icon_on"] and p["b_icon_auto"] and ctr_polys:
+        # disposition automatique : forme au-dessus, texte en dessous
+        ht = _bbox(ctr_polys)[3] - _bbox(ctr_polys)[1]
+        hi = 2 * R * p["b_icon_size"] / 100.0
+        # place disponible : disque central (plus petit anneau sous les textes du cercle)
+        inner = [R * p["b_r%d_r" % i] / 100.0 for i in range(1, 5)
+                 if p["b_r%d_on" % i] and p["b_r%d_r" % i] < min(p["b_top_r"], p["b_bot_r"])]
+        r_in = min(inner) if inner else R * 0.6
+        room = 2 * r_in * 0.62 - ht - R * 0.05
+        icon_k = max(0.3, min(1.0, room / max(hi, 1e-6)))
+        hi *= icon_k
+        total = hi + R * 0.06 + ht
+        icon_shift = -total / 2 + hi / 2
+        text_shift = total / 2 - ht / 2
+    if p["b_icon_on"]:
+        try:
+            subs = load_shape(p["b_icon_file"])
+        except Exception:
+            subs = []
+        if subs:
+            bb = _bbox([sp[0] for sp in subs])
+            k = (2 * R * p["b_icon_size"] / 100.0) / max(bb[2] - bb[0], bb[3] - bb[1], 1e-6)
+            k *= icon_k
+            cx, cy = (bb[0] + bb[2]) / 2, (bb[1] + bb[3]) / 2
+            polys = [[((x - cx) * k, (y - cy) * k + p["b_icon_dy"] + icon_shift) for x, y in pts]
+                     for pts, closed in subs if closed]
+            polys = _rotate(polys, rot)
+            if polys:
+                els.append({"kind": "icon", "polys": polys, "col": p["b_icon_col"],
+                            "metal": bool(p["b_icon_metal"])})
 
     sweeps = {}
     texts = []
@@ -812,10 +902,28 @@ def badge_geometry(p):
             texts.append({"kind": "text", "polys": polys, "col": p["b_%s_col" % key],
                           "sw": p["b_%s_sw" % key], "scol": p["b_%s_scol" % key]})
 
-    if p["b_ctr_text"].strip():
-        tp = _text_params(p["b_ctr_text"], p["b_ctr_font"], p["b_ctr_size"],
-                          0.0, p["b_ctr_ls"])
-        polys = [[(x, y + p["b_ctr_dy"]) for x, y in poly] for poly in _centered_text(tp)]
+    if p["b_pearl_on"] and p["b_pearl_n"] >= 1:
+        els.append({"kind": "pearls", "r": R * p["b_pearl_r"] / 100.0, "n": int(p["b_pearl_n"]),
+                    "size": p["b_pearl_size"], "style": p["b_pearl_style"],
+                    "col": p["b_pearl_col"], "rot": rot, "metal": bool(p["b_pearl_metal"])})
+    if p["b_ban_on"]:
+        if ctr_polys:
+            tb = _bbox(ctr_polys)
+            th, tw = tb[3] - tb[1], tb[2] - tb[0]
+        else:
+            th, tw = p["b_ctr_size"] * 0.75, 0.0
+        H = max(4.0, th * p["b_ban_h"] / 100.0)
+        Wb = max(tw + H * 1.2, 2 * R * p["b_ban_w"] / 100.0)
+        cy = p["b_ctr_dy"] + text_shift
+        bp = _banner_parts(p["b_ban_style"], Wb, H, cy, p["b_ban_curve"], p["b_ban_fill"],
+                           p["b_ban_rivets"])
+        parts = [(_rotate([pts], rot)[0], col, out) for pts, col, out in bp["parts"]]
+        rivs = [(*_rotate([[(x, y)]], rot)[0][0], r) for x, y, r in bp["rivets"]]
+        els.append({"kind": "banner", "rot": 0.0, "metal": bool(p["b_ban_metal"]),
+                    "parts": parts, "rivets": rivs,
+                    "stroke": p["b_ban_stroke"], "sw": p["b_ban_sw"]})
+    if ctr_polys:
+        polys = [[(x, y + p["b_ctr_dy"] + text_shift) for x, y in poly] for poly in ctr_polys]
         polys = _rotate(polys, rot)
         if polys:
             texts.append({"kind": "text", "polys": polys, "col": p["b_ctr_col"],
@@ -847,22 +955,50 @@ def badge_geometry(p):
         if polys:
             els.append({"kind": "motifs", "polys": polys, "col": p["b_mot_col"]})
 
+    if p["b_note_text"].strip():
+        tp = _text_params(p["b_note_text"], p["b_note_font"], p["b_note_size"], 1.0)
+        polys, _sw = _circle_text(tp, R * p["b_note_r"] / 100.0, 90.0 + rot, True)
+        if polys:
+            texts.append({"kind": "text", "polys": polys, "col": p["b_note_col"],
+                          "sw": 0.0, "scol": BLACK})
+
+    # le bandeau passe devant les décors, derrière les textes
+    els = [e for e in els if e["kind"] != "banner"] + [e for e in els if e["kind"] == "banner"]
     els += texts
     ext = 1.0
     for e in els:
-        if e["kind"] == "ring":
-            ext = max(ext, e["r"] + e["sw"] / 2)
-        elif e["kind"] == "arcs":
+        k = e["kind"]
+        if k in ("ring_fill", "ring_stroke"):
+            ext = max(ext, e["r"] + e.get("sw", 0) / 2)
+        elif k == "arcs":
             ext = max(ext, e["r"] + e["w"] / 2)
+        elif k == "rope":
+            ext = max(ext, e["r"] + e["w"] / 2 + 1)
+        elif k == "guil":
+            ext = max(ext, e["r2"])
+        elif k == "laurel":
+            ext = max(ext, e["r"] + e["size"])
+        elif k == "pearls":
+            ext = max(ext, e["r"] + e["size"] / 2 + 1)
+        elif k == "banner":
+            pass        # le bandeau peut déborder du cercle : pris en compte dans bbox
         else:
             ext = max(ext, _max_radius(e["polys"]) + e.get("sw", 0.0))
-    polys = [q for e in els if e["kind"] in ("text", "motifs") for q in e["polys"]]
-    return {"els": els, "ext": ext + 2, "R": R, "polys": polys}
+    polys = [q for e in els if e["kind"] in ("text", "motifs", "icon") for q in e["polys"]]
+    e2 = ext + 2
+    bx0, by0, bx1, by1 = -e2, -e2, e2, e2
+    for e in els:
+        if e["kind"] == "banner":
+            pb = _bbox([pts for pts, _c, _o in e["parts"]])
+            m = e["sw"] + 2
+            bx0, by0 = min(bx0, pb[0] - m), min(by0, pb[1] - m)
+            bx1, by1 = max(bx1, pb[2] + m), max(by1, pb[3] + m)
+    return {"els": els, "ext": e2, "R": R, "polys": polys, "box": (bx0, by0, bx1, by1)}
 
 
 def badge_extents(g, p):
     e = g["ext"]
-    x0, y0, x1, y1 = -e, -e, e, e
+    x0, y0, x1, y1 = g.get("box", (-e, -e, e, e))
     if p["b_sh_on"] and p["b_sh_col"][3] > 0:
         b = p["b_sh_blur"] * 2 + 2
         x0 = min(x0, x0 + p["b_sh_dx"] - b)
@@ -872,19 +1008,335 @@ def badge_extents(g, p):
     return math.floor(x0), math.floor(y0), math.ceil(x1), math.ceil(y1)
 
 
-def _draw_element(c, e):
-    if e["kind"] == "ring":
+EDGES = [("lisse", "Lisse"), ("feston", "Festonné (cire)"), ("dents", "Dentelé (capsule)"),
+         ("crans", "Cranté (engrenage)"), ("ebreche", "Ébréché")]
+EDGE_KEYS = [e[0] for e in EDGES]
+
+
+def _edge_points(kind, R, n, depth, rot=0.0, seed=5):
+    """Contour du bord extérieur : festonné, dentelé, cranté ou ébréché."""
+    d = R * max(0.0, depth) / 100.0
+    n = max(3, n)
+    rnd = random.Random(seed)
+    ph = [rnd.uniform(0, 2 * math.pi) for _ in range(4)]
+    chips = [(rnd.uniform(0, 2 * math.pi), rnd.uniform(0.05, 0.12), rnd.uniform(0.5, 1.0))
+             for _ in range(5)]
+    N = max(360, n * 24)
+    pts = []
+    for k in range(N):
+        t = 2 * math.pi * k / N
+        if kind == "feston":
+            r = R - d * 0.5 * (1 - math.cos(n * t))
+            r += d * 0.35 * (math.sin(3 * t + ph[0]) + 0.6 * math.sin(5 * t + ph[1])
+                             + 0.4 * math.sin(7 * t + ph[2]))
+        elif kind == "dents":
+            r = R - d * abs(math.sin(n * t / 2)) ** 0.8
+        elif kind == "crans":
+            u = (n * t / (2 * math.pi)) % 1.0
+            e = 0.06
+            if u < e:
+                f = u / e
+            elif u < 0.5:
+                f = 1.0
+            elif u < 0.5 + e:
+                f = 1 - (u - 0.5) / e
+            else:
+                f = 0.0
+            r = R - d * (1 - f)
+        else:   # ebreche
+            r = R
+            for a, w, amt in chips:
+                da = abs((t - a + math.pi) % (2 * math.pi) - math.pi)
+                if da < w:
+                    r -= d * amt * (1 - (da / w) ** 2)
+            r += d * 0.06 * math.sin(40 * t + ph[3])
+        tt = t + math.radians(rot)
+        pts.append((r * math.cos(tt), r * math.sin(tt)))
+    return pts
+
+
+def _draw_rope(c, e):
+    r, w, col = e["r"], max(1.0, e["w"]), e["col"]
+    dark = _darken(col, 0.4)
+    c.new_path()
+    c.set_line_width(w)
+    c.set_source_rgba(*dark)
+    c.arc(0, 0, r, 0, 2 * math.pi)
+    c.stroke()
+    n = max(12, int(2 * math.pi * r / (w * 0.55)))
+    c.set_line_width(max(0.6, w * 0.09))
+    for k in range(n):
+        t = 2 * math.pi * k / n + math.radians(e["rot"])
+        c.save()
+        c.translate(r * math.cos(t), r * math.sin(t))
+        c.rotate(t + math.pi / 2 + 0.8)
+        c.scale(w * 0.62, w * 0.3)
         c.new_path()
-        c.arc(0, 0, max(0.5, e["r"]), 0, 2 * math.pi)
-        if e["fill"][3] > 0:
-            c.set_source_rgba(*e["fill"])
+        c.arc(0, 0, 1, 0, 2 * math.pi)
+        c.restore()
+        c.set_source_rgba(*col)
+        c.fill_preserve()
+        c.set_source_rgba(*dark)
+        c.stroke()
+
+
+def _draw_guilloche(c, e):
+    r1, r2 = sorted((e["r1"], e["r2"]))
+    c.save()
+    c.new_path()
+    c.arc(0, 0, r2, 0, 2 * math.pi)
+    c.new_sub_path()
+    c.arc(0, 0, max(0.1, r1), 0, 2 * math.pi)
+    c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+    c.clip()
+    c.set_fill_rule(cairo.FILL_RULE_WINDING)
+    rm, amp = (r1 + r2) / 2, (r2 - r1) * 0.65
+    m = max(2, e["waves"])
+    steps = m * 16
+    c.set_line_width(max(0.3, e["w"]))
+    c.set_source_rgba(*e["col"])
+    off = math.radians(e["rot"])
+    for k in range(max(1, e["n"])):
+        phase = 2 * math.pi * k / max(1, e["n"])
+        for sgn in (1, -1):
+            c.new_path()
+            for i in range(steps + 1):
+                t = 2 * math.pi * i / steps
+                rr = rm + amp * math.sin(sgn * m * t + phase)
+                x, y = rr * math.cos(t + off), rr * math.sin(t + off)
+                (c.move_to if i == 0 else c.line_to)(x, y)
+            c.stroke()
+    c.restore()
+
+
+def _leaf(c, x, y, ang, L):
+    c.save()
+    c.translate(x, y)
+    c.rotate(ang)
+    c.move_to(0, 0)
+    c.curve_to(L * 0.3, -L * 0.32, L * 0.75, -L * 0.22, L, 0)
+    c.curve_to(L * 0.75, L * 0.22, L * 0.3, L * 0.32, 0, 0)
+    c.close_path()
+    c.restore()
+
+
+def _draw_laurel(c, e):
+    r, L, col = e["r"], max(2.0, e["size"]), e["col"]
+    span, gap = max(e["gap"] / 2 + 10, e["span"]), e["gap"]
+    rot = e["rot"]
+    c.new_path()
+    for side in (1, -1):
+        a0, a1 = 90 + side * gap / 2, 90 + side * span
+        length = r * math.radians(abs(a1 - a0))
+        count = max(2, int(length / (L * 0.42)))
+        for i in range(count):
+            for half in (0.0, 0.5):
+                u = (i + half) / count
+                a = math.radians(a0 + (a1 - a0) * u + rot)
+                dx, dy = -math.sin(a) * side, math.cos(a) * side
+                ang = math.atan2(dy, dx)
+                size = L * (1 - 0.45 * u)
+                tilt = 0.75 if half == 0 else -0.75
+                _leaf(c, r * math.cos(a), r * math.sin(a), ang + tilt, size)
+    c.set_source_rgba(*col)
+    c.fill()
+    c.set_line_width(max(1.0, L * 0.08))
+    c.set_line_cap(cairo.LINE_CAP_ROUND)
+    for side in (1, -1):
+        a0, a1 = math.radians(90 + side * gap / 2 + rot), math.radians(90 + side * span + rot)
+        c.new_path()
+        if side > 0:
+            c.arc(0, 0, r, a0, a1)
+        else:
+            c.arc_negative(0, 0, r, a0, a1)
+        c.stroke()
+
+
+BANNER_STYLES = [("ruban", "Ruban (pointes fourchues)"), ("plaque", "Plaque")]
+PEARL_STYLES = [("perle", "Perles"), ("rivet", "Rivets"), ("diamant", "Diamants")]
+
+
+def _banner_parts(style, W, H, cy, curve, fill, rivets):
+    """Polygones du bandeau (de l'arrière vers l'avant) + rivets."""
+    parts, riv = [], []
+    hw = W / 2
+    if style == "plaque":
+        rr = H * 0.22
+        pts = []
+        for cx_, cy_, a0 in ((hw - rr, cy - H / 2 + rr, -90), (hw - rr, cy + H / 2 - rr, 0),
+                             (-hw + rr, cy + H / 2 - rr, 90), (-hw + rr, cy - H / 2 + rr, 180)):
+            for k in range(10):
+                a = math.radians(a0 + 9 * k)
+                pts.append((cx_ + rr * math.cos(a), cy_ + rr * math.sin(a)))
+        parts.append((pts, fill, True))
+        if rivets:
+            for sx in (-1, 1):
+                for sy in (-1, 1):
+                    riv.append((sx * (hw - H * 0.22), cy + sy * H * 0.28, H * 0.075))
+        return {"parts": parts, "rivets": riv}
+    # ruban : bande principale courbée, queues fourchues derrière, plis
+    def edge_y(x, base):
+        return base + curve * (x / hw) ** 2
+    n = 40
+    top = [(x, edge_y(x, cy - H / 2)) for x in (hw * (2 * k / n - 1) for k in range(n + 1))]
+    bot = [(x, edge_y(x, cy + H / 2)) for x in (hw * (1 - 2 * k / n) for k in range(n + 1))]
+    tail_col, fold_col = _darken(fill, 0.72), _darken(fill, 0.5)
+    drop, out, inn = H * 0.38, H * 1.0, H * 0.55
+    for sx in (-1, 1):
+        yb = edge_y(hw, cy + H / 2)
+        yt = yb - H + drop
+        x_in, x_out = sx * (hw - inn), sx * (hw + out)
+        tail = [(x_in, yt), (x_out, yt), (x_out - sx * H * 0.38, yt + H / 2),
+                (x_out, yt + H), (x_in, yt + H)]
+        parts.append((tail, tail_col, True))
+        parts.append(([(sx * hw, yb), (sx * hw, yb + drop), (x_in, yb)], fold_col, False))
+    parts.append((top + bot, fill, True))
+    return {"parts": parts, "rivets": riv}
+
+
+def _draw_banner(c, e):
+    rot = math.radians(e["rot"])
+    cr, sr = math.cos(rot), math.sin(rot)
+    def tr(x, y):
+        return x * cr - y * sr, x * sr + y * cr
+    c.set_line_join(cairo.LINE_JOIN_ROUND)
+    for pts, col, outline in e["parts"]:
+        c.new_path()
+        for i, (x, y) in enumerate(pts):
+            (c.move_to if i == 0 else c.line_to)(*tr(x, y))
+        c.close_path()
+        c.set_source_rgba(*col)
+        if outline and e["sw"] > 0 and e["stroke"][3] > 0:
             c.fill_preserve()
-        if e["sw"] > 0 and e["stroke"][3] > 0:
             c.set_line_width(e["sw"])
             c.set_source_rgba(*e["stroke"])
             c.stroke()
+        else:
+            c.fill()
+    for x, y, r in e["rivets"]:
+        _bead(c, *tr(x, y), r, e["stroke"], "rivet")
+
+
+def _bead(c, x, y, r, col, style):
+    """Une perle, un rivet ou un diamant, avec reflet."""
+    if style == "rivet":
         c.new_path()
-    elif e["kind"] == "arcs":
+        c.arc(x, y, r, 0, 2 * math.pi)
+        c.set_source_rgba(*_darken(col, 0.45))
+        c.fill()
+        r2 = r * 0.72
+    else:
+        r2 = r
+    g = cairo.RadialGradient(x - r2 * 0.35, y - r2 * 0.35, r2 * 0.1, x, y, r2)
+    if style == "diamant":
+        g.add_color_stop_rgba(0, 1, 1, 1, 1)
+        g.add_color_stop_rgba(0.6, *col)
+        g.add_color_stop_rgba(1, *_darken(col, 0.55))
+    else:
+        g.add_color_stop_rgba(0, *_lerp(col, [1, 1, 1, col[3]], 0.7))
+        g.add_color_stop_rgba(0.55, *col)
+        g.add_color_stop_rgba(1, *_darken(col, 0.5))
+    c.new_path()
+    c.arc(x, y, r2, 0, 2 * math.pi)
+    c.set_source(g)
+    c.fill()
+    if style == "diamant":
+        c.set_source_rgba(1, 1, 1, 0.9)
+        c.set_line_width(max(0.4, r * 0.12))
+        for a in (0, math.pi / 2):
+            c.new_path()
+            c.move_to(x - r * 1.1 * math.cos(a), y - r * 1.1 * math.sin(a))
+            c.line_to(x + r * 1.1 * math.cos(a), y + r * 1.1 * math.sin(a))
+            c.stroke()
+
+
+def _draw_pearls(c, e):
+    n, r = max(1, e["n"]), e["r"]
+    for k in range(n):
+        t = 2 * math.pi * k / n + math.radians(e["rot"]) - math.pi / 2
+        _bead(c, r * math.cos(t), r * math.sin(t), max(0.5, e["size"] / 2), e["col"], e["style"])
+
+
+def _apply_texture(comp, kind, amount, scale, x0, y0, R, seed=11):
+    """Texture sur tout le badge : métal brossé, cire, patine ou rouille."""
+    if kind not in ("brosse", "cire", "patine", "rouille") or amount <= 0:
+        return
+    rnd = random.Random(seed)
+    c = cairo.Context(comp)
+    c.scale(scale, scale)
+    c.translate(-x0, -y0)
+    c.set_operator(cairo.OPERATOR_ATOP)
+    if kind == "brosse":
+        c.set_line_width(1.2 / max(scale, 0.05))
+        r = 2.0
+        while r < R * 1.15:
+            light = rnd.random() < 0.5
+            c.set_source_rgba(1 if light else 0, 1 if light else 0, 1 if light else 0,
+                              amount * rnd.uniform(0.02, 0.12))
+            c.new_path()
+            c.arc(0, 0, r, 0, 2 * math.pi)
+            c.stroke()
+            r += max(1.0, 1.6 / max(scale, 0.05))
+        return
+    cols = {"cire": [((0, 0, 0), 0.22, 0.18), ((1, 1, 1), 0.18, 0.15)],
+            "patine": [((0.12, 0.32, 0.3), 0.55, 0.12), ((0.05, 0.08, 0.05), 0.35, 0.05)],
+            "rouille": [((0.55, 0.25, 0.08), 0.55, 0.1), ((0.2, 0.08, 0.02), 0.4, 0.04)]}[kind]
+    for col, alpha, size in cols:
+        for _ in range(70):
+            rr = R * math.sqrt(rnd.random()) * 1.05
+            t = rnd.uniform(0, 2 * math.pi)
+            x, y = rr * math.cos(t), rr * math.sin(t)
+            rb = R * size * rnd.uniform(0.3, 1.0)
+            g = cairo.RadialGradient(x, y, 0, x, y, rb)
+            g.add_color_stop_rgba(0, col[0], col[1], col[2], alpha * amount * rnd.uniform(0.4, 1))
+            g.add_color_stop_rgba(1, col[0], col[1], col[2], 0)
+            c.set_source(g)
+            c.new_path()
+            c.arc(x, y, rb, 0, 2 * math.pi)
+            c.fill()
+
+
+def _ring_path(c, e):
+    c.new_path()
+    if e.get("edge"):
+        pts = e["edge"]
+        c.move_to(*pts[0])
+        for q in pts[1:]:
+            c.line_to(*q)
+        c.close_path()
+    else:
+        c.arc(0, 0, max(0.5, e["r"]), 0, 2 * math.pi)
+
+
+def _draw_element(c, e):
+    k = e["kind"]
+    if k == "ring_fill":
+        _ring_path(c, e)
+        c.set_source_rgba(*e["fill"])
+        c.fill()
+    elif k == "ring_stroke":
+        _ring_path(c, e)
+        c.set_line_width(e["sw"])
+        c.set_line_join(cairo.LINE_JOIN_ROUND)
+        c.set_source_rgba(*e["stroke"])
+        c.stroke()
+    elif k == "rope":
+        _draw_rope(c, e)
+    elif k == "guil":
+        _draw_guilloche(c, e)
+    elif k == "laurel":
+        _draw_laurel(c, e)
+    elif k == "pearls":
+        _draw_pearls(c, e)
+    elif k == "banner":
+        _draw_banner(c, e)
+    elif k == "icon":
+        _trace(c, e["polys"])
+        c.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+        c.set_source_rgba(*e["col"])
+        c.fill()
+        c.set_fill_rule(cairo.FILL_RULE_WINDING)
+    elif k == "arcs":
         c.set_line_width(e["w"])
         c.set_line_cap(cairo.LINE_CAP_ROUND)
         c.set_source_rgba(*e["col"])
@@ -921,13 +1373,14 @@ def render_badge(g, p, scale=1.0):
     metal = p["b_metal"] if p["b_metal"] in METALS else None
     scope = p["b_bev_scope"]
     for e in g["els"]:
-        bevel = scope == "tout" or (scope == "textes" and e["kind"] in ("text", "motifs"))
-        if not metal and not bevel:
+        bevel = scope == "tout" or (scope == "textes" and e["kind"] in ("text", "motifs", "icon"))
+        use_metal = metal and e.get("metal", True)
+        if not use_metal and not bevel:
             _draw_element(ctx_for(comp), e)
             continue
         es = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
         _draw_element(ctx_for(es), e)
-        if metal:
+        if use_metal:
             er = g["ext"]
             _apply_metal(es, _gradient((-er, -er, er, er), 60, METALS[metal]), scale, x0, y0)
         if bevel:
@@ -935,6 +1388,8 @@ def render_badge(g, p, scale=1.0):
                    p["b_bev_angle"], p["b_bev_hi"], p["b_bev_sh"])
         cc.set_source_surface(es, 0, 0)
         cc.paint()
+
+    _apply_texture(comp, p["b_tex"], p["b_tex_amount"], scale, x0, y0, g["R"])
 
     if p["b_sh_on"] and p["b_sh_col"][3] > 0:
         out = cairo.ImageSurface(cairo.FORMAT_ARGB32, W, H)
@@ -1230,7 +1685,8 @@ def resolve_shape(ref):
 BUILTIN_NAMES = {"etoile.svg": "Étoile", "coeur.svg": "Cœur", "fleche.svg": "Flèche",
                  "maison.svg": "Maison", "fleur.svg": "Fleur", "spirale.svg": "Spirale",
                  "croix.svg": "Croix", "cercle.svg": "Cercle", "ovale.svg": "Ovale",
-                 "vague.svg": "Vague", "arche.svg": "Arche", "bulle.svg": "Bulle"}
+                 "vague.svg": "Vague", "arche.svg": "Arche", "bulle.svg": "Bulle",
+                 "bouclier.svg": "Bouclier"}
 
 
 def list_shapes():
@@ -1941,12 +2397,23 @@ def apply_badge_preset(p, preset, keep_texts=False):
         # Un texte gardé dans un emplacement que le modèle laisse vide prend
         # le style de l'autre texte du modèle (sinon il resterait blanc, etc.).
         for key, other in (("bot", "top"), ("top", "bot")):
-            if out["b_%s_text" % key].strip() and not preset.get("b_%s_text" % key, "x").strip():
+            if out["b_%s_text" % key].strip() and not preset.get(
+                    "b_%s_text" % key, DEFAULTS["b_%s_text" % key]).strip():
                 for attr in ("font", "size", "col", "r", "sw", "scol"):
                     base["b_%s_%s" % (key, attr)] = base["b_%s_%s" % (other, attr)]
                 base["b_%s_fit" % key] = 0.0
                 # l'autre texte ne doit plus faire presque tout le tour
                 base["b_%s_fit" % other] = min(base["b_%s_fit" % other], 150.0)
+        if out["b_ctr_text"].strip() and not preset.get("b_ctr_text", "").strip():
+            # texte central gardé : police du modèle, couleur foncée lisible sur le fond
+            base["b_ctr_font"] = base["b_top_font"]
+            col = base["b_top_col"]
+            # fond du centre = plus petit anneau affiché : clair -> texte foncé
+            rings = [(base["b_r%d_r" % i], base["b_r%d_fill" % i]) for i in range(1, 5)
+                     if base["b_r%d_on" % i] and base["b_r%d_fill" % i][3] > 0]
+            fill = min(rings)[1] if rings else [1, 1, 1, 0]
+            light = 0.3 * fill[0] + 0.59 * fill[1] + 0.11 * fill[2] >= 0.45
+            base["b_ctr_col"] = _darken(col, 0.35) if (light and base["b_metal"] in METALS) else col
     out.update(base)
     out["mode"] = "badge"
     return out
@@ -2073,4 +2540,210 @@ INSIDE_PRESETS += [
                                 path_stroke=_c("c89b2a"), path_sw=3, path_size=300,
                                 in_where="hors", in_align="centre", in_margin=12,
                                 in_frame_w=250, in_frame_h=160)),
+]
+
+
+# --------------------------------------------------------------------------
+# Badges inspirés des sceaux et médailles (lot 1 : 6 modèles de validation)
+# --------------------------------------------------------------------------
+GOLD, CREAM, NAVY = _c("f6e7b8"), _c("fff6dc"), _c("16325c")
+BADGE_PRESETS += [
+    ("Sceau de cire rouge", dict(
+        _rings((1, True, 100, _c("b3261e"), 0, NONE), (2, True, 78, NONE, 3, _c("8e1c15")),
+               (3, True, 58, NONE, 2.5, _c("8e1c15")), (4, False, 50, NONE, 3, WHITE)),
+        b_edge="feston", b_edge_n=11, b_edge_depth=7,
+        b_top_text="MON ENTREPRISE", b_top_size=50, b_top_col=_c("5e0d09"), b_top_r=68,
+        b_top_fit=150, b_bot_text="PARIS", b_bot_size=46, b_bot_col=_c("5e0d09"), b_bot_r=68,
+        b_bot_sp=8, b_ctr_text="APPROUVÉ", b_ctr_size=58, b_ctr_col=_c("5e0d09"),
+        b_mot_on=True, b_mot_char="★", b_mot_n=2, b_mot_start=90, b_mot_r=68, b_mot_size=30,
+        b_mot_col=_c("5e0d09"), b_bev_scope="tout", b_bev_style="relief", b_bev_depth=5,
+        b_bev_soft=4, b_bev_hi=0.45, b_bev_sh=0.6, b_tex="cire", b_tex_amount=0.55,
+        b_sh_on=True, b_sh_dx=6, b_sh_dy=9, b_sh_blur=10, b_sh_col=_c("000000", 0.4),
+        b_sel_on=False)),
+    ("Badge bleu institutionnel", dict(
+        _rings((1, True, 100, CREAM, 3, _c("6b4a00")), (2, True, 86, NAVY, 4, GOLD, False),
+               (3, True, 58, _c("1d4f91"), 4, GOLD, False), (4, False, 50, NONE, 3, WHITE)),
+        b_guil_on=True, b_guil_r1=87, b_guil_r2=99, b_guil_col=_c("6b4a00", 0.7), b_guil_n=8,
+        b_guil_waves=40, b_guil_w=0.9,
+        b_top_text="MON ENTREPRISE", b_top_size=50, b_top_col=GOLD, b_top_r=72, b_top_fit=150,
+        b_bot_text="PARIS", b_bot_size=46, b_bot_col=GOLD, b_bot_r=72, b_bot_sp=8,
+        b_ctr_text="APPROUVÉ", b_ctr_size=56, b_ctr_col=GOLD,
+        b_mot_on=True, b_mot_char="★", b_mot_n=2, b_mot_start=90, b_mot_r=72, b_mot_size=30,
+        b_mot_col=GOLD, b_metal="or", b_bev_scope="tout", b_bev_style="relief", b_bev_depth=3,
+        b_bev_soft=1.5, b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9,
+        b_sh_col=_c("000000", 0.35), b_sel_on=False)),
+    ("Médaille d'or prestige", dict(
+        _rings((1, True, 100, CREAM, 4, _c("8a6a1c")), (2, True, 80, NONE, 3, _c("8a6a1c")),
+               (3, False, 60, NONE, 3, WHITE), (4, False, 50, NONE, 3, WHITE)),
+        b_laur_on=True, b_laur_r=113, b_laur_size=40, b_laur_span=150, b_laur_gap=40,
+        b_laur_col=CREAM,
+        b_top_text="MON ENTREPRISE", b_top_size=50, b_top_col=_c("6b4a00"), b_top_r=90,
+        b_top_fit=140, b_bot_text="PARIS", b_bot_size=44, b_bot_col=_c("6b4a00"), b_bot_r=90,
+        b_bot_sp=8, b_ctr_text="APPROUVÉ", b_ctr_size=62, b_ctr_col=_c("6b4a00"),
+        b_mot_on=True, b_mot_char="★", b_mot_n=14, b_mot_start=0, b_mot_r=72, b_mot_size=20,
+        b_mot_col=_c("8a6a1c"), b_metal="or", b_tex="brosse", b_tex_amount=0.7,
+        b_bev_scope="tout", b_bev_style="relief", b_bev_depth=3, b_bev_soft=1.5,
+        b_sh_on=True, b_sh_dx=4, b_sh_dy=7, b_sh_blur=8, b_sh_col=_c("000000", 0.3),
+        b_sel_on=False)),
+    ("Vintage brasserie", dict(
+        _rings((1, True, 100, _c("f2d6a8"), 0, NONE), (2, True, 86, _c("2f5d5b"), 4, _c("f2d6a8"), False),
+               (3, True, 56, _c("b88c5a"), 4, _c("5c3a14")), (4, False, 50, NONE, 3, WHITE)),
+        b_edge="dents", b_edge_n=40, b_edge_depth=5,
+        b_top_text="CERTIFIÉ CONFORME", b_top_size=48, b_top_col=_c("f2d6a8"), b_top_r=71,
+        b_top_fit=150, b_bot_text="DEPUIS 2026", b_bot_size=46, b_bot_col=_c("f2d6a8"),
+        b_bot_r=71, b_bot_sp=4, b_icon_on=True, b_icon_file="builtin:etoile.svg",
+        b_icon_size=36, b_icon_col=_c("fff3dc"),
+        b_mot_on=True, b_mot_char="★", b_mot_n=2, b_mot_start=90, b_mot_r=71, b_mot_size=30,
+        b_mot_col=_c("f2d6a8"), b_metal="bronze", b_tex="patine", b_tex_amount=0.8,
+        b_bev_scope="tout", b_bev_style="relief", b_bev_depth=3, b_bev_soft=1.5,
+        b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9, b_sh_col=_c("000000", 0.35),
+        b_sel_on=False)),
+    ("Moderne & tech", dict(
+        _rings((1, True, 100, CREAM, 0, NONE), (2, True, 88, _c("0b3d91"), 3, GOLD, False),
+               (3, True, 58, _c("15171c"), 4, GOLD, False), (4, False, 50, NONE, 3, WHITE)),
+        b_edge="crans", b_edge_n=8, b_edge_depth=4,
+        b_top_text="CERTIFIÉ CONFORME", b_top_size=48, b_top_col=GOLD, b_top_r=73,
+        b_top_fit=150, b_bot_text="DEPUIS 2026", b_bot_size=46, b_bot_col=GOLD, b_bot_r=73,
+        b_bot_sp=4, b_icon_on=True, b_icon_file="builtin:bouclier.svg", b_icon_size=34,
+        b_icon_col=_c("2f7de1"), b_icon_metal=False, b_note_text="GIMP-FONTWORK", b_note_size=15, b_note_r=94,
+        b_note_col=_c("3a2a00"), b_metal="or", b_tex="brosse", b_tex_amount=0.5,
+        b_bev_scope="tout", b_bev_style="relief", b_bev_depth=3, b_bev_soft=1.5,
+        b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9, b_sh_col=_c("000000", 0.35),
+        b_sel_on=False)),
+    ("Champion (humour)", dict(
+        _rings((1, True, 94, NAVY, 3, GOLD, False), (2, True, 64, CREAM, 4, GOLD),
+               (3, False, 90, NONE, 3, WHITE), (4, False, 50, NONE, 3, WHITE)),
+        b_rope_on=True, b_rope_r=98, b_rope_w=16, b_rope_col=CREAM,
+        b_top_text="CHAMPION DE LA PROCRASTINATION", b_top_font="Serif Bold", b_top_size=40,
+        b_top_col=GOLD, b_top_r=79, b_top_fit=215, b_bot_text="DEPUIS TOUJOURS",
+        b_bot_font="Serif Bold", b_bot_size=42, b_bot_col=GOLD, b_bot_r=79, b_bot_sp=3,
+        b_mot_on=True, b_mot_char="★", b_mot_n=2, b_mot_start=90, b_mot_r=79, b_mot_size=26,
+        b_mot_col=GOLD, b_note_text="GIMP-FONTWORK", b_note_size=14, b_note_r=106,
+        b_note_col=_c("3a2a00"), b_metal="or", b_bev_scope="tout", b_bev_style="relief",
+        b_bev_depth=3, b_bev_soft=1.5, b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9,
+        b_sh_col=_c("000000", 0.35), b_sel_on=True, b_sel_r=63)),
+]
+
+
+# Lot 2 : bandeaux, perles, rivets et diamants
+SLATE, STEEL = _c("23272e"), _c("d5d9de")
+BADGE_PRESETS += [
+    ("Gravure blanche", dict(
+        _rings((1, True, 100, SLATE, 3, WHITE), (2, True, 93, NONE, 1.5, WHITE),
+               (3, True, 62, NONE, 2.5, WHITE), (4, False, 50, NONE, 3, WHITE)),
+        b_top_text="MON ENTREPRISE", b_top_size=50, b_top_col=WHITE, b_top_r=78, b_top_fit=140,
+        b_bot_text="PARIS", b_bot_size=46, b_bot_col=WHITE, b_bot_r=78, b_bot_sp=8,
+        b_ctr_text="APPROUVÉ", b_ctr_size=56, b_ctr_col=WHITE,
+        b_ban_on=True, b_ban_style="ruban", b_ban_w=88, b_ban_h=165, b_ban_curve=10,
+        b_ban_fill=SLATE, b_ban_stroke=WHITE, b_ban_sw=3,
+        b_pearl_on=True, b_pearl_style="perle", b_pearl_r=68, b_pearl_n=56, b_pearl_size=4,
+        b_pearl_col=WHITE, b_bev_scope="textes", b_bev_style="relief", b_bev_depth=2,
+        b_bev_soft=1, b_bev_hi=0.35, b_bev_sh=0.6, b_sel_on=False)),
+    ("Industriel cuivre", dict(
+        _rings((1, True, 100, _c("f0c9a8"), 3, _c("5a2c12")), (2, True, 84, NONE, 3, _c("5a2c12")),
+               (3, True, 60, _c("e8e8e8"), 3, _c("5a2c12")), (4, False, 50, NONE, 3, WHITE)),
+        b_top_text="MON ENTREPRISE", b_top_size=50, b_top_col=_c("4a2210"), b_top_r=72,
+        b_top_fit=140, b_bot_text="PARIS", b_bot_size=48, b_bot_col=_c("4a2210"), b_bot_r=72,
+        b_bot_sp=8, b_ctr_text="APPROUVÉ", b_ctr_size=54, b_ctr_col=_c("3a2a20"),
+        b_ban_on=True, b_ban_style="plaque", b_ban_w=82, b_ban_h=190, b_ban_fill=STEEL,
+        b_ban_stroke=_c("6b6f75"), b_ban_sw=3, b_ban_rivets=True, b_ban_metal=False,
+        b_pearl_on=True, b_pearl_style="rivet", b_pearl_r=92, b_pearl_n=24, b_pearl_size=14,
+        b_pearl_col=_c("f0c9a8"),
+        b_mot_on=True, b_mot_char="★", b_mot_n=2, b_mot_start=90, b_mot_r=72, b_mot_size=30,
+        b_mot_col=_c("4a2210"), b_metal="cuivre", b_tex="rouille", b_tex_amount=0.55,
+        b_bev_scope="tout", b_bev_style="relief", b_bev_depth=3, b_bev_soft=1.5,
+        b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9, b_sh_col=_c("000000", 0.35),
+        b_sel_on=False)),
+    ("Bijouterie luxe", dict(
+        _rings((1, True, 100, CREAM, 2, _c("8a6a1c")), (2, True, 91, NAVY, 3, GOLD, False),
+               (3, True, 60, CREAM, 3, GOLD), (4, False, 50, NONE, 3, WHITE)),
+        b_top_text="CERTIFIÉ CONFORME", b_top_font="Serif", b_top_size=44, b_top_col=GOLD,
+        b_top_r=76, b_top_fit=150, b_bot_text="JOAILLERIE", b_bot_font="Serif",
+        b_bot_size=42, b_bot_col=GOLD, b_bot_r=76, b_bot_sp=6,
+        b_ctr_text="MC", b_ctr_font="Serif", b_ctr_size=130, b_ctr_col=_c("8a6a1c"),
+        b_pearl_on=True, b_pearl_style="diamant", b_pearl_r=95.5, b_pearl_n=72, b_pearl_size=9,
+        b_pearl_col=_c("dfe6ee"), b_pearl_metal=False,
+        b_mot_on=True, b_mot_char="•", b_mot_n=2, b_mot_start=90, b_mot_r=76, b_mot_size=26,
+        b_mot_col=GOLD, b_metal="or", b_tex="brosse", b_tex_amount=0.45,
+        b_bev_scope="tout", b_bev_style="relief", b_bev_depth=3, b_bev_soft=1.5,
+        b_sh_on=True, b_sh_dx=4, b_sh_dy=7, b_sh_blur=8, b_sh_col=_c("000000", 0.3),
+        b_sel_on=False)),
+    ("Éco vert & rouge", dict(
+        _rings((1, True, 100, _c("3f6f32"), 4, _c("2c4f23"), False),
+               (2, True, 63, _c("b63a2b"), 0, NONE, False), (3, False, 60, NONE, 3, WHITE),
+               (4, False, 50, NONE, 3, WHITE)),
+        b_rope_on=True, b_rope_r=64.5, b_rope_w=9, b_rope_col=_c("e8c75a"),
+        b_laur_on=True, b_laur_r=80, b_laur_size=26, b_laur_span=105, b_laur_gap=100,
+        b_laur_col=_c("8cc06a"),
+        b_top_text="MON ENTREPRISE", b_top_size=54, b_top_col=_c("f3ead0"), b_top_r=82,
+        b_top_fit=125, b_bot_text="PARIS", b_bot_size=50, b_bot_col=_c("f3ead0"), b_bot_r=82,
+        b_bot_sp=8, b_ctr_text="APPROUVÉ", b_ctr_size=60, b_ctr_col=WHITE,
+        b_bev_scope="tout", b_bev_style="relief", b_bev_depth=2.5, b_bev_soft=1.5,
+        b_bev_hi=0.5, b_bev_sh=0.45, b_tex="cire", b_tex_amount=0.3,
+        b_sh_on=True, b_sh_dx=4, b_sh_dy=7, b_sh_blur=8, b_sh_col=_c("000000", 0.3),
+        b_sel_on=False)),
+    ("Institutionnel à ruban", dict(
+        _rings((1, True, 100, CREAM, 3, _c("6b4a00")), (2, True, 86, NAVY, 4, GOLD, False),
+               (3, True, 60, NAVY, 3, GOLD, False), (4, False, 50, NONE, 3, WHITE)),
+        b_rope_on=True, b_rope_r=93, b_rope_w=17, b_rope_col=CREAM,
+        b_top_text="CERTIFIÉ INSTITUTIONNEL", b_top_font="Serif Bold", b_top_size=44,
+        b_top_col=GOLD, b_top_r=73, b_top_fit=170, b_bot_text="",
+        b_ctr_text="DEPUIS 2026", b_ctr_font="Serif Bold", b_ctr_size=30, b_ctr_col=GOLD,
+        b_ctr_dy=196, b_ban_on=True, b_ban_style="ruban", b_ban_w=82, b_ban_h=200,
+        b_ban_curve=-12, b_ban_fill=NAVY, b_ban_stroke=GOLD, b_ban_sw=4,
+        b_icon_on=True, b_icon_file="builtin:bouclier.svg", b_icon_size=42, b_icon_col=CREAM,
+        b_icon_auto=False, b_icon_dy=-12,
+        b_mot_on=True, b_mot_char="★", b_mot_n=14, b_mot_start=0, b_mot_r=66, b_mot_size=16,
+        b_mot_col=GOLD, b_metal="or", b_bev_scope="tout", b_bev_style="relief",
+        b_bev_depth=3, b_bev_soft=1.5, b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9,
+        b_sh_col=_c("000000", 0.35), b_sel_on=False)),
+]
+
+
+# Lot 3 : sport, tampon éco et variantes humoristiques du Champion
+_CHAMPION = dict(BADGE_PRESETS)["Champion (humour)"]
+
+
+def _champion(top, bot, note="GIMP-FONTWORK", **kw):
+    d = dict(_CHAMPION, b_top_text=top, b_bot_text=bot, b_note_text=note)
+    d.update(kw)
+    return d
+
+
+RED = _c("c62828")
+BADGE_PRESETS += [
+    ("Sport & performance", dict(
+        _rings((1, True, 100, CREAM, 4, _c("6b4a00")), (2, True, 90, NAVY, 3, GOLD, False),
+               (3, True, 62, CREAM, 5, RED), (4, True, 58, NONE, 2, _c("6b4a00"))),
+        b_top_text="CERTIFIÉ CONFORME", b_top_size=50, b_top_col=GOLD, b_top_r=76,
+        b_top_fit=150, b_bot_text="DEPUIS 2026", b_bot_size=48, b_bot_col=GOLD, b_bot_r=76,
+        b_bot_sp=4, b_laur_on=True, b_laur_r=50, b_laur_size=22, b_laur_span=140,
+        b_laur_gap=40, b_laur_col=CREAM,
+        b_mot_on=True, b_mot_char="■", b_mot_n=2, b_mot_start=90, b_mot_r=76, b_mot_size=22,
+        b_mot_col=GOLD, b_note_text="GIMP-FONTWORK", b_note_size=14, b_note_r=95,
+        b_note_col=_c("3a2a00"), b_metal="or", b_bev_scope="tout", b_bev_style="relief",
+        b_bev_depth=3, b_bev_soft=1.5, b_sh_on=True, b_sh_dx=5, b_sh_dy=8, b_sh_blur=9,
+        b_sh_col=_c("000000", 0.35), b_sel_on=True, b_sel_r=56)),
+    ("Tampon éco", dict(
+        _rings((1, True, 100, WHITE, 9, _c("1f5c4a")), (2, True, 92, NONE, 2.5, _c("1f5c4a")),
+               (3, True, 58, _c("d8c48a"), 4, _c("1f5c4a")), (4, False, 50, NONE, 3, WHITE)),
+        b_top_text="CERTIFIÉ CONFORME", b_top_size=52, b_top_col=_c("1f5c4a"), b_top_r=76,
+        b_top_fit=0, b_top_sp=3, b_bot_text="DEPUIS 2026", b_bot_size=50, b_bot_col=_c("1f5c4a"),
+        b_bot_r=76, b_bot_sp=4, b_laur_on=True, b_laur_r=76, b_laur_size=22, b_laur_span=92,
+        b_laur_gap=92, b_laur_col=_c("2e7d5b"),
+        b_note_text="GIMP-FONTWORK", b_note_size=14, b_note_r=106, b_note_col=_c("1f5c4a"),
+        b_sel_on=True, b_sel_r=57)),
+    ("Champion : reine de la gaffe", _champion(
+        "REINE DE LA GAFFE", "DEPUIS 2026", "SANS FAIRE EXPRÈS", b_edge="ebreche",
+        b_edge_depth=6, b_top_fit=180)),
+    ("Champion : mauvaise foi garantie", _champion(
+        "MAUVAISE FOI GARANTIE", "100% DE BONNE FOI", b_top_fit=190)),
+    ("Champion : expert en cafouillage", _champion(
+        "EXPERT EN CAFOUILLAGE", "DEPUIS CE MATIN", b_top_fit=190, b_tex="patine",
+        b_tex_amount=0.45, b_rope_on=False, b_edge="ebreche", b_edge_depth=4)),
+    ("Champion : sorcier de la caféine", _champion(
+        "SORCIER DE LA CAFÉINE", "GRÂCE AU CAFÉ", b_top_fit=190, b_rope_on=False,
+        b_mot_char="●", b_mot_size=18)),
+    ("Champion : grand maître du bazar", _champion(
+        "GRAND MAÎTRE DU BAZAR", "TOUT EST SOUS CONTRÔLE", b_top_fit=190, b_bot_size=34)),
 ]

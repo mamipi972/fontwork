@@ -24,6 +24,7 @@ Installation : copier le dossier « fontwork » (fontwork.py + fontwork_core.py)
 dans le dossier plug-ins de GIMP 3. Menu : Calque ▸ Texte Fontwork…
 """
 import datetime
+import hashlib
 import traceback
 import json
 import os
@@ -421,6 +422,10 @@ class FontworkDialog:
         self.style_combo = Gtk.ComboBoxText()
         self.style_combo.connect("changed", self._on_style)
         sbox.pack_start(self.style_combo, True, True, 0)
+        gbtn = Gtk.Button(label="Galerie…")
+        gbtn.set_tooltip_text("Choisir un modèle d'après sa vignette")
+        gbtn.connect("clicked", self._on_gallery)
+        sbox.pack_start(gbtn, False, False, 0)
         btn = Gtk.Button(label="Enregistrer…")
         btn.set_tooltip_text("Enregistrer les réglages actuels comme modèle personnel")
         btn.connect("clicked", self._on_save_style)
@@ -859,6 +864,10 @@ class FontworkDialog:
         self._section(g, "Badge")
         self._slider(g, "Diamètre (px)", "b_size", 100, 4000, 10)
         self._slider(g, "Rotation (°)", "b_rotation", -180, 180, 1)
+        self._section(g, "Bord extérieur (anneau 1)")
+        self._combo(g, "Forme du bord", "b_edge", fw.EDGES)
+        self._slider(g, "Nombre de festons / dents / crans", "b_edge_n", 3, 120, 1)
+        self._slider(g, "Profondeur (%)", "b_edge_depth", 0, 30, 0.5, 1)
         for i in range(1, 5):
             self._section(g, "Anneau %d" % i)
             self._check(g, "Afficher l'anneau %d" % i, "b_r%d_on" % i)
@@ -866,6 +875,7 @@ class FontworkDialog:
             self._color(g, "Fond (transparent possible)", "b_r%d_fill" % i)
             self._slider(g, "Épaisseur du trait", "b_r%d_sw" % i, 0, 60, 0.5, 1)
             self._color(g, "Couleur du trait", "b_r%d_stroke" % i)
+            self._check(g, "Teinte métal sur le fond (si finition métal)", "b_r%d_metal" % i)
         return g
 
     def _page_b_texts(self):
@@ -908,6 +918,59 @@ class FontworkDialog:
         self._color(g, "Couleur", "b_mot_col")
         self._slider(g, "Angle de départ (°)", "b_mot_start", -180, 180, 1)
         self._check(g, "Orienter les motifs selon le cercle", "b_mot_follow")
+        self._section(g, "Cordelette torsadée")
+        self._check(g, "Afficher la cordelette", "b_rope_on")
+        self._slider(g, "Rayon (%)", "b_rope_r", 5, 130, 0.5, 1)
+        self._slider(g, "Épaisseur", "b_rope_w", 2, 80, 0.5, 1)
+        self._color(g, "Couleur", "b_rope_col")
+        self._section(g, "Guillochage (hachures ondulées)")
+        self._check(g, "Afficher le guillochage", "b_guil_on")
+        self._slider(g, "Rayon intérieur (%)", "b_guil_r1", 0, 130, 0.5, 1)
+        self._slider(g, "Rayon extérieur (%)", "b_guil_r2", 0, 130, 0.5, 1)
+        self._slider(g, "Nombre de lignes", "b_guil_n", 1, 40, 1)
+        self._slider(g, "Nombre d'ondulations", "b_guil_waves", 2, 200, 1)
+        self._slider(g, "Épaisseur des lignes", "b_guil_w", 0.2, 6, 0.1, 1)
+        self._color(g, "Couleur", "b_guil_col")
+        self._section(g, "Couronne de lauriers")
+        self._check(g, "Afficher les lauriers", "b_laur_on")
+        self._slider(g, "Rayon (%)", "b_laur_r", 5, 150, 0.5, 1)
+        self._slider(g, "Taille des feuilles (px)", "b_laur_size", 4, 200, 1)
+        self._slider(g, "Hauteur des branches (°)", "b_laur_span", 20, 180, 1)
+        self._slider(g, "Écart en bas (°)", "b_laur_gap", 0, 120, 1)
+        self._color(g, "Couleur", "b_laur_col")
+        self._section(g, "Forme SVG au centre")
+        self._check(g, "Afficher une forme au centre", "b_icon_on")
+        self._combo(g, "Forme", "b_icon_file", fw.list_shapes())
+        self._slider(g, "Taille (% du diamètre)", "b_icon_size", 2, 100, 0.5, 1)
+        self._slider(g, "Décalage vertical (px)", "b_icon_dy", -2000, 2000, 1)
+        self._color(g, "Couleur", "b_icon_col")
+        self._check(g, "Teinte métal (si finition métal)", "b_icon_metal")
+        self._check(g, "Placer automatiquement au-dessus du texte central", "b_icon_auto")
+        self._section(g, "Bandeau sous le texte central")
+        self._check(g, "Afficher le bandeau", "b_ban_on")
+        self._combo(g, "Style", "b_ban_style", fw.BANNER_STYLES)
+        self._slider(g, "Largeur (% du diamètre)", "b_ban_w", 10, 200, 0.5, 1)
+        self._slider(g, "Hauteur (% du texte)", "b_ban_h", 100, 400, 1)
+        self._slider(g, "Courbure du ruban (px)", "b_ban_curve", -200, 200, 1)
+        self._color(g, "Fond", "b_ban_fill")
+        self._color(g, "Contour", "b_ban_stroke")
+        self._slider(g, "Épaisseur du contour", "b_ban_sw", 0, 20, 0.5, 1)
+        self._check(g, "Rivets aux coins (plaque)", "b_ban_rivets")
+        self._check(g, "Teinte métal (si finition métal)", "b_ban_metal")
+        self._section(g, "Couronne de perles, rivets ou diamants")
+        self._check(g, "Afficher la couronne", "b_pearl_on")
+        self._combo(g, "Style", "b_pearl_style", fw.PEARL_STYLES)
+        self._slider(g, "Rayon (%)", "b_pearl_r", 5, 130, 0.5, 1)
+        self._slider(g, "Nombre", "b_pearl_n", 1, 300, 1)
+        self._slider(g, "Taille (px)", "b_pearl_size", 1, 100, 0.5, 1)
+        self._color(g, "Couleur", "b_pearl_col")
+        self._check(g, "Teinte métal (si finition métal)", "b_pearl_metal")
+        self._section(g, "Petite mention en bas")
+        self._entry(g, "Texte (vide = aucune)", "b_note_text")
+        self._font(g, "Police", "b_note_font")
+        self._slider(g, "Taille (px)", "b_note_size", 4, 200, 1)
+        self._slider(g, "Rayon (%)", "b_note_r", 5, 150, 0.5, 1)
+        self._color(g, "Couleur", "b_note_col")
         self._section(g, "Zone centrale pour une photo ou un logo")
         self._check(g, "Créer une zone circulaire en validant", "b_sel_on")
         self._combo(g, "Sous forme de", "b_sel_mode",
@@ -928,7 +991,11 @@ class FontworkDialog:
         self._section(g, "Finition")
         self._combo(g, "Métal", "b_metal", [("aucun", "Aucun (couleurs choisies)"),
                                             ("or", "Or"), ("argent", "Argent"),
-                                            ("bronze", "Bronze")])
+                                            ("bronze", "Bronze"), ("cuivre", "Cuivre")])
+        self._combo(g, "Texture", "b_tex", [("aucune", "Aucune"), ("brosse", "Métal brossé"),
+                                            ("cire", "Cire"), ("patine", "Patine"),
+                                            ("rouille", "Rouille")])
+        self._slider(g, "Intensité de la texture", "b_tex_amount", 0, 1, 0.05, 2)
         self._section(g, "Biseau")
         self._combo(g, "Appliquer à", "b_bev_scope", [("rien", "Rien"),
                                                       ("textes", "Textes et motifs"),
@@ -944,35 +1011,27 @@ class FontworkDialog:
         return g
 
     # ------------------------------------------------------ modèles
-    def _fill_styles(self):
-        self.loading_styles = True
-        self.style_combo.remove_all()
-        self.style_combo.append("", "— choisir un modèle —")
-        if self.p["mode"] == "badge":
-            for i, (name, _) in enumerate(fw.BADGE_PRESETS):
-                self.style_combo.append("b%d" % i, name)
-        elif self.p["mode"] in ("chemin", "interieur"):
-            if self.p["mode"] == "chemin":
-                for i, (name, _) in enumerate(fw.PATH_PRESETS):
-                    self.style_combo.append("c%d" % i, name)
+    def _style_entries(self):
+        """[(identifiant, libellé)] des modèles du mode en cours."""
+        out = []
+        mode = self.p["mode"]
+        if mode == "badge":
+            out += [("b%d" % i, n) for i, (n, _) in enumerate(fw.BADGE_PRESETS)]
+        elif mode in ("chemin", "interieur"):
+            if mode == "chemin":
+                out += [("c%d" % i, n) for i, (n, _) in enumerate(fw.PATH_PRESETS)]
             else:
-                for i, (name, _) in enumerate(fw.INSIDE_PRESETS):
-                    self.style_combo.append("i%d" % i, name)
-            for i, (name, _) in enumerate(fw.PRESETS):
-                self.style_combo.append("p%d" % i, "Lettres : " + name)
+                out += [("i%d" % i, n) for i, (n, _) in enumerate(fw.INSIDE_PRESETS)]
+            out += [("p%d" % i, "Lettres : " + n) for i, (n, _) in enumerate(fw.PRESETS)]
         else:
-            for i, (name, _) in enumerate(fw.PRESETS):
-                self.style_combo.append("p%d" % i, name)
+            out += [("p%d" % i, n) for i, (n, _) in enumerate(fw.PRESETS)]
         for name, st in sorted(load_json(STYLES_FILE, {}).items()):
-            if st.get("mode", "texte") == self.p["mode"]:
-                self.style_combo.append("u:" + name, "★ " + name)
-        self.style_combo.set_active_id("")
-        self.loading_styles = False
+            if st.get("mode", "texte") == mode:
+                out.append(("u:" + name, "★ " + name))
+        return out
 
-    def _on_style(self, combo):
-        sid = combo.get_active_id()
-        if not sid or getattr(self, "loading_styles", False):
-            return
+    def _styled(self, sid):
+        """Réglages obtenus en appliquant le modèle sid aux réglages actuels."""
         if sid.startswith("u:"):
             style = load_json(STYLES_FILE, {}).get(sid[2:], {})
         elif sid.startswith("b"):
@@ -984,15 +1043,131 @@ class FontworkDialog:
         else:
             style = fw.PRESETS[int(sid[1:])][1]
         if style.get("mode") == "badge":
-            self.p = fw.apply_badge_preset(self.p, style, self.keep_texts.get_active())
-        elif style.get("mode") == "chemin":
-            self.p = fw.apply_path_preset(self.p, style)
-        elif style.get("mode") == "interieur":
-            self.p = fw.apply_inside_preset(self.p, style)
-        else:
-            self.p = fw.apply_preset(self.p, style)
+            return fw.apply_badge_preset(self.p, style, self.keep_texts.get_active())
+        if style.get("mode") == "chemin":
+            return fw.apply_path_preset(self.p, style)
+        if style.get("mode") == "interieur":
+            return fw.apply_inside_preset(self.p, style)
+        return fw.apply_preset(self.p, style)
+
+    def _fill_styles(self):
+        self.loading_styles = True
+        self.style_combo.remove_all()
+        self.style_combo.append("", "— choisir un modèle —")
+        for sid, label in self._style_entries():
+            self.style_combo.append(sid, label)
+        self.style_combo.set_active_id("")
+        self.loading_styles = False
+
+    def _on_style(self, combo):
+        sid = combo.get_active_id()
+        if not sid or getattr(self, "loading_styles", False):
+            return
+        self.p = self._styled(sid)
         self._sync_widgets()
         self._changed()
+
+    # ------------------------------------------------------ galerie
+    THUMB = 132
+
+    def _thumb_surface(self, params):
+        """Vignette d'un modèle, gardée en mémoire et sur disque (fontwork-vignettes)."""
+        key = hashlib.sha1(json.dumps(fw.normalize(params), sort_keys=True,
+                                      ensure_ascii=True).encode()).hexdigest()
+        cache = getattr(self, "_thumb_cache", None)
+        if cache is None:
+            cache = self._thumb_cache = {}
+        if key in cache:
+            return cache[key]
+        folder = _cfg_path("fontwork-vignettes")
+        fn = os.path.join(folder, key + ".png")
+        surf = None
+        if os.path.exists(fn):
+            try:
+                surf = cairo.ImageSurface.create_from_png(fn)
+            except Exception:
+                surf = None
+        if surf is None:
+            prep = fw.prepare(params)
+            x0, y0, x1, y1 = fw.total_extents(prep, params)
+            sc = min(self.THUMB / max(1, x1 - x0), self.THUMB / max(1, y1 - y0), 1.0)
+            surf, _ = fw.draw(prep, params, sc)
+            try:
+                os.makedirs(folder, exist_ok=True)
+                surf.write_to_png(fn)
+            except Exception:
+                pass
+        cache[key] = surf
+        return surf
+
+    def _on_gallery(self, _btn):
+        d = Gtk.Dialog(title="Galerie des modèles", transient_for=self.dlg, modal=True)
+        d.add_button("_Fermer", Gtk.ResponseType.CLOSE)
+        d.set_default_size(760, 560)
+        sw = Gtk.ScrolledWindow(vexpand=True, hexpand=True)
+        fb = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, homogeneous=True,
+                         max_children_per_line=8, row_spacing=8, column_spacing=8,
+                         margin=8, valign=Gtk.Align.START)
+        fb.set_activate_on_single_click(True)
+        sw.add(fb)
+        d.get_content_area().pack_start(sw, True, True, 0)
+        pending = []
+        for sid, label in self._style_entries():
+            vb = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            da = Gtk.DrawingArea()
+            da.set_size_request(self.THUMB, self.THUMB)
+            da.surf = None
+            da.connect("draw", self._draw_gallery_cell)
+            vb.pack_start(da, False, False, 0)
+            lab = Gtk.Label(label=label, wrap=True, max_width_chars=16,
+                            justify=Gtk.Justification.CENTER)
+            vb.pack_start(lab, False, False, 0)
+            child = Gtk.FlowBoxChild()
+            child.add(vb)
+            child.sid = sid
+            child.set_tooltip_text("Cliquer pour appliquer ce modèle")
+            fb.add(child)
+            pending.append((sid, da))
+
+        def on_pick(_box, child):
+            self.p = self._styled(child.sid)
+            self._sync_widgets()
+            self._changed()
+            d.response(Gtk.ResponseType.CLOSE)
+        fb.connect("child-activated", on_pick)
+
+        # vignettes calculées une par une, sans bloquer la fenêtre
+        def step():
+            if not pending or not d.get_visible():
+                return False
+            sid, da = pending.pop(0)
+            try:
+                da.surf = self._thumb_surface(self._styled(sid))
+            except Exception:
+                da.surf = None
+            da.queue_draw()
+            return bool(pending)
+        d.show_all()
+        GLib.idle_add(step)
+        d.run()
+        pending.clear()
+        d.destroy()
+
+    @staticmethod
+    def _draw_gallery_cell(area, cr):
+        w, h = area.get_allocated_width(), area.get_allocated_height()
+        cr.set_source_rgb(0.62, 0.62, 0.62)
+        cr.paint()
+        cr.set_source_rgb(0.78, 0.78, 0.78)
+        for yy in range(0, h, 12):
+            for xx in range((yy // 12) % 2 * 12, w, 24):
+                cr.rectangle(xx, yy, 12, 12)
+        cr.fill()
+        surf = getattr(area, "surf", None)
+        if surf is None:
+            return
+        cr.set_source_surface(surf, (w - surf.get_width()) // 2, (h - surf.get_height()) // 2)
+        cr.paint()
 
     def _on_save_style(self, _btn):
         d = Gtk.Dialog(title="Enregistrer le modèle", transient_for=self.dlg, modal=True)
@@ -1190,6 +1365,26 @@ class FontworkDialog:
         for k in ("b_mot_char", "b_mot_font", "b_mot_n", "b_mot_r", "b_mot_size",
                   "b_mot_col", "b_mot_start", "b_mot_follow"):
             self._sens(k, bool(p["b_mot_on"]))
+        self._sens("b_edge_n", p["b_edge"] != "lisse")
+        self._sens("b_edge_depth", p["b_edge"] != "lisse")
+        for k in ("b_rope_r", "b_rope_w", "b_rope_col"):
+            self._sens(k, bool(p["b_rope_on"]))
+        for k in ("b_guil_r1", "b_guil_r2", "b_guil_n", "b_guil_waves", "b_guil_w", "b_guil_col"):
+            self._sens(k, bool(p["b_guil_on"]))
+        for k in ("b_laur_r", "b_laur_size", "b_laur_span", "b_laur_gap", "b_laur_col"):
+            self._sens(k, bool(p["b_laur_on"]))
+        for k in ("b_icon_file", "b_icon_size", "b_icon_dy", "b_icon_col", "b_icon_metal",
+                  "b_icon_auto"):
+            self._sens(k, bool(p["b_icon_on"]))
+        self._sens("b_tex_amount", p["b_tex"] != "aucune")
+        for k in ("b_ban_style", "b_ban_w", "b_ban_h", "b_ban_curve", "b_ban_fill",
+                  "b_ban_stroke", "b_ban_sw", "b_ban_rivets", "b_ban_metal"):
+            self._sens(k, bool(p["b_ban_on"]))
+        self._sens("b_ban_curve", bool(p["b_ban_on"]) and p["b_ban_style"] == "ruban")
+        self._sens("b_ban_rivets", bool(p["b_ban_on"]) and p["b_ban_style"] == "plaque")
+        for k in ("b_pearl_style", "b_pearl_r", "b_pearl_n", "b_pearl_size", "b_pearl_col",
+                  "b_pearl_metal"):
+            self._sens(k, bool(p["b_pearl_on"]))
         for k in ("b_sel_r", "b_sel_mode", "b_sel_hint"):
             self._sens(k, bool(p["b_sel_on"]))
         for k in ("b_bev_style", "b_bev_depth", "b_bev_soft", "b_bev_angle", "b_bev_hi", "b_bev_sh"):
