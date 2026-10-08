@@ -28,7 +28,6 @@ import hashlib
 import traceback
 import json
 import os
-import shutil
 import sys
 
 import gi
@@ -709,17 +708,9 @@ class FontworkDialog:
         g.attach(self.path_box, 0, g.row, 2, 1)
         self.rows["path_box"] = (self.path_box,)
         g.row += 1
-        hb = Gtk.Box(spacing=6)
-        add = Gtk.Button(label="Ajouter un SVG…")
-        add.set_tooltip_text("Copie un fichier SVG dans votre bibliothèque de formes")
-        add.connect("clicked", self._on_add_svg)
-        hb.pack_start(add, False, False, 0)
-        g.attach(hb, 0, g.row, 2, 1)
-        self.rows["path_add"] = (add,)
-        g.row += 1
         hint = Gtk.Label(xalign=0, wrap=True, max_width_chars=48, selectable=True)
-        hint.set_markup("<small>Vos formes : <b>%s</b>\nVous pouvez aussi y déposer des fichiers "
-                        "SVG directement.</small>" % GLib.markup_escape_text(user_shape_dir()))
+        hint.set_markup("<small>Vos formes : <b>%s</b>\nDéposez-y vos fichiers SVG pour les "
+                        "ajouter à la bibliothèque.</small>" % GLib.markup_escape_text(user_shape_dir()))
         g.attach(hint, 0, g.row, 2, 1)
         g.row += 1
         self._fill_path_shapes()
@@ -827,36 +818,6 @@ class FontworkDialog:
     def _reselect(box, child):
         box.select_child(child)
         return False
-
-    def _on_add_svg(self, _btn):
-        d = Gtk.FileChooserDialog(title="Ajouter une forme SVG", transient_for=self.dlg,
-                                  action=Gtk.FileChooserAction.OPEN)
-        d.add_button("_Annuler", Gtk.ResponseType.CANCEL)
-        d.add_button("_Ajouter", Gtk.ResponseType.OK)
-        f = Gtk.FileFilter()
-        f.set_name("Images SVG")
-        f.add_pattern("*.svg")
-        f.add_pattern("*.SVG")
-        d.add_filter(f)
-        if d.run() == Gtk.ResponseType.OK and d.get_filename():
-            src = d.get_filename()
-            try:
-                if not fw.parse_svg(src):
-                    raise ValueError("aucun contour lisible (texte ou image intégrée ?)")
-                dest_dir = user_shape_dir()
-                base, ext = os.path.splitext(os.path.basename(src))
-                name, k = base + ".svg", 2
-                while os.path.exists(os.path.join(dest_dir, name)):
-                    name, k = "%s-%d.svg" % (base, k), k + 1
-                shutil.copyfile(src, os.path.join(dest_dir, name))
-                self.p["path_file"] = "user:" + name
-                self.p["path_src"] = "svg"
-                self._fill_path_shapes()
-                self._sync_widgets()
-                self._changed()
-            except Exception as e:
-                self.status.set_text("SVG refusé : %s" % e)
-        d.destroy()
 
     # ------------------------------------------------- pages mode badge
     def _page_b_rings(self):
@@ -1349,7 +1310,7 @@ class FontworkDialog:
         self._sens("rot_y", not chemin)
         self._sens("persp", bool(p["rot_x"] or p["rot_y"]) and not chemin)
         svg = p["path_src"] == "svg"
-        for k in ("path_box", "path_add", "path_size"):
+        for k in ("path_box", "path_size"):
             self._sens(k, svg)
         self._sens("path_sep", bool(p["path_repeat"]))
         for k in ("in_frame_w", "in_frame_h"):
